@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Самостійна робота</title>
+<script src="config.js"></script>
+<style>
+  :root {
+    --bg: #f3f1ea; --card: #fff; --ink: #1d2a2e; --muted: #667378; --line: #dcd9ce;
+    --accent: #1f7a5a; --accent-dark: #17614a; --accent-soft: #e3f2ec;
+    --warn: #c0392b; --warn-soft: #fbe9e6; --amber: #d98e04;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  body, .container, label, .options, .pair, .question-title, img, figure { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; display: flex; justify-content: center; }
+  .container { background: var(--card); width: 100%; max-width: 720px; padding: 22px 22px 26px; border-radius: 20px; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 12px 32px rgba(40,50,40,.10); }
+  h2 { margin: 0 0 4px; font-size: 24px; line-height: 1.25; text-align: center; letter-spacing: -.01em; }
+  .subject { text-align: center; color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
+  .topic { text-align: center; color: var(--muted); margin: 0 0 14px; }
+  .hidden { display: none !important; }
+  .note { background: var(--accent-soft); color: #1b4a3a; padding: 12px 14px; border-radius: 10px; font-size: 14px; }
+  .error-msg { color: var(--warn); font-weight: 600; margin: 12px 0; text-align: center; }
+  .status { background: #eceae2; color: var(--ink); padding: 12px 14px; border-radius: 10px; text-align: center; margin: 12px 0; }
+  label.fld { display: block; font-weight: 700; margin: 16px 0 6px; font-size: 14px; }
+  select, input[type=text], textarea { width: 100%; padding: 12px; font: inherit; font-size: 16px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); -webkit-user-select: text; user-select: text; }
+  select:focus, input[type=text]:focus, textarea:focus { outline: 3px solid var(--accent-soft); border-color: var(--accent); }
+  textarea { resize: none; }
+  button { display: block; width: 100%; margin-top: 18px; padding: 14px 20px; font: inherit; font-size: 17px; font-weight: 700; color: #fff; background: var(--accent); border: 0; border-radius: 12px; cursor: pointer; }
+  button:hover:not(:disabled) { background: var(--accent-dark); }
+  button:disabled { background: #a8b1ad; cursor: not-allowed; }
+  .hint-small { font-size: 13px; color: var(--muted); margin-top: 14px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .progress { color: var(--muted); font-size: 14px; font-weight: 600; }
+  .timer-box { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--warn); background: var(--warn-soft); padding: 6px 12px; border-radius: 999px; font-size: 16px; }
+  .timer-box.low { animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+  .bar { height: 6px; background: #ece9df; border-radius: 99px; overflow: hidden; margin-bottom: 16px; }
+  .bar > i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+  .question-title { font-size: 19px; font-weight: 700; margin: 8px 0 14px; line-height: 1.4; }
+  .hint { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+  .options label { display: flex; gap: 10px; align-items: flex-start; background: #faf9f5; border: 1.5px solid var(--line); padding: 12px 14px; margin-bottom: 8px; border-radius: 12px; cursor: pointer; transition: border-color .12s, background .12s; }
+  .options label:hover { background: #f2f0e8; }
+  .options label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .options input { margin-top: 4px; accent-color: var(--accent); width: 18px; height: 18px; flex: none; }
+  .pair { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .pair .left { flex: 1.2; background: #faf9f5; border: 1.5px solid var(--line); padding: 10px 12px; border-radius: 10px; }
+  .pair select { flex: 1; min-width: 0; }
+  .num { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 15px; }
+  @media (max-width: 520px) { .pair.stack { flex-direction: column; align-items: stretch; } .container { padding: 18px 16px 22px; } }
+
+  figure.media { margin: 0 0 14px; text-align: center; }
+  figure.media img { max-width: 100%; max-height: 420px; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+  figcaption { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .video { position: relative; padding-top: 56.25%; margin: 0 0 14px; border-radius: 12px; overflow: hidden; background: #000; }
+  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .stage { position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto 14px; line-height: 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); touch-action: manipulation; }
+  .stage img { display: block; max-width: 100%; max-height: 62vh; -webkit-user-drag: none; }
+  .dot { position: absolute; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font: 800 15px/30px system-ui, sans-serif; text-align: center; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.45); cursor: pointer; }
+  .dot.active { background: var(--amber); transform: translate(-50%, -50%) scale(1.2); }
+  .stage.tap { cursor: crosshair; }
+  .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--warn); background: rgba(192,57,43,.25); pointer-events: none; }
+
+  #warn-overlay { position: fixed; inset: 0; background: rgba(192,57,43,.96); color: #fff; display: flex; align-items: center; justify-content: center; text-align: center; padding: 30px; font-size: 20px; z-index: 9999; }
+  #warn-overlay button { background: #fff; color: var(--warn); max-width: 280px; margin-left: auto; margin-right: auto; }
+  #pause-overlay { position: fixed; inset: 0; background: #22343a; color: #fff; display: flex; align-items: center; justify-content: center; text-align: center; padding: 30px; z-index: 10000; font-size: 19px; }
+  #preview-badge { position: fixed; top: 0; left: 0; right: 0; background: var(--amber); color: #fff; text-align: center; font-weight: 700; font-size: 13px; padding: 3px; z-index: 5; }
+  .res-list { text-align: left; font-size: 13px; background: #faf9f5; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; max-height: 320px; overflow: auto; -webkit-user-select: text; user-select: text; }
+  .res-list div { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+</style>
+</head>
+<body oncontextmenu="return false;">
+<div id="preview-badge" class="hidden">ПРОБНИЙ ЗАПУСК — результати нікуди не надсилаються</div>
+
+<div class="container">
+  <div id="start-screen">
+    <div class="subject" id="subject"></div>
+    <h2 id="main-title">Самостійна робота</h2>
+    <p class="topic" id="topic"></p>
+
+    <div id="fatal" class="error-msg hidden"></div>
+    <div id="device-blocked-msg" class="error-msg hidden">З цього пристрою вже було розпочато або складено цю роботу. Повторне складання заборонено.</div>
+    <div id="wait-msg" class="status">Зв'язок із сервером… Зачекайте.</div>
+
+    <div id="resume-box" class="hidden" style="text-align:center;">
+      <p class="error-msg" style="color:var(--ink);">Ви не завершили роботу. Її можна продовжити з місця, де ви зупинились.</p>
+      <button id="resume-btn">Продовжити роботу</button>
+    </div>
+
+    <div id="form-container" class="hidden">
+      <label class="fld" for="class-select">Клас / група:</label>
+      <select id="class-select"><option value="">— оберіть —</option></select>
+      <label class="fld" for="student-select">Прізвище та ім'я:</label>
+      <select id="student-select" disabled><option value="">— спочатку оберіть клас —</option></select>
+      <p class="hint-small">Після початку не згортайте сторінку, не перемикайте вкладки й не виходьте — це фіксується. Роботу можна пройти лише один раз. На кожне питання відведено обмежений час.</p>
+      <button id="start-btn" disabled>Розпочати</button>
+    </div>
+  </div>
+
+  <div id="quiz-screen" class="hidden">
+    <div class="topbar">
+      <div class="progress" id="progress"></div>
+      <div class="timer-box" id="timer-box"><span id="timer">--</span> с</div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+    <div id="paste-warn" class="error-msg hidden">Вставка тексту заборонена. Відповідь потрібно вводити вручну.</div>
+    <div id="question-container"></div>
+    <button id="next-btn">Наступне питання</button>
+  </div>
+
+  <div id="end-screen" class="hidden" style="text-align:center;">
+    <h2>Роботу завершено</h2>
+    <p id="end-msg">Дякуємо! Ваші відповіді відправлені вчителю на перевірку.</p>
+    <div id="preview-result" class="hidden"></div>
+  </div>
+</div>
+
+<div id="pause-overlay" class="hidden">
+  <div>
+    <div style="font-size:52px;">⏸</div>
+    <p><b>Пауза</b></p>
+    <p>Вчитель призупинив роботу (наприклад, через повітряну тривогу). Таймер зупинено, сторінку можна залишити. Робота продовжиться автоматично — не закривайте цю вкладку.</p>
+  </div>
+</div>
+<div id="warn-overlay" class="hidden">
+  <div>
+    <div id="warn-text"></div>
+    <button id="warn-btn">Повернутись до роботи</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const PREVIEW = qs.get('preview');
+  const TEST_ID = PREVIEW || qs.get('t') || '';
+  const SCRIPT_URL = window.SCRIPT_URL || '';
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const rich = s => esc(s).replace(/\n/g, '<br>');
+
+  let INFO = null;             // дані з сервера: назва, групи, налаштування
+  let TEST = null;             // тіло тесту (питання)
+  let MAX_AWAY_ONE = 30, MAX_AWAY_TOTAL = 90;
+  const LS_KEY = 'test_done_' + TEST_ID, ST_KEY = 'test_state_' + TEST_ID;
+
+  /* ---------- Утиліти ---------- */
+  function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const pick = (pool, n) => (!n || n >= pool.length) ? pool.slice() : shuffle(pool).slice(0, n);
+  function ytId(u) {
+    u = String(u || '').trim(); if (!u) return '';
+    let m = u.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/);
+    if (m) return m[1];
+    return /^[\w-]{11}$/.test(u) ? u : '';
+  }
+  function videoHtml(q) {
+    const id = ytId(q.video); if (!id) return '';
+    let src = 'https://www.youtube-nocookie.com/embed/' + id + '?rel=0&modestbranding=1&playsinline=1';
+    if (+q.vStart > 0) src += '&start=' + Math.floor(q.vStart);
+    if (+q.vEnd > 0) src += '&end=' + Math.floor(q.vEnd);
+    return '<div class="video"><iframe src="' + src + '" title="Відео" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+  }
+  function imgHtml(q) {
+    if (!q.img) return '';
+    return '<figure class="media"><img src="' + esc(q.img) + '" alt="" draggable="false">' + (q.imgCap ? '<figcaption>' + esc(q.imgCap) + '</figcaption>' : '') + '</figure>';
+  }
+
+  /* ---------- Побудова варіанта ---------- */
+  function buildVariant(test) {
+    const out = [];
+    (test.sections || []).forEach(s => {
+      const pool = s.questions || [];
+      if (!pool.length) return;
+      const base = { points: +s.points || 0, time: +s.time || 60 };
+      const common = q => ({ pid: q.id, text: q.text || '', img: q.img || '', imgCap: q.imgCap || '', video: q.video || '', vStart: q.vStart || 0, vEnd: q.vEnd || 0 });
+      if (s.type === 'tf') {
+        const n = +s.n || 1, cnt = +s.count || 4;
+        let bag = shuffle(pool.map((_, i) => i));
+        for (let k = 0; k < n; k++) {
+          if (bag.length < cnt) bag = bag.concat(shuffle(pool.map((_, i) => i)));
+          const idx = bag.splice(0, Math.min(cnt, pool.length));
+          out.push(Object.assign({ type: 'tf', pid: 'tf:' + idx.map(i => i + 1).join(','), text: s.title || 'Визначте, чи правильні твердження:', statements: idx.map(i => pool[i]) }, base));
+        }
+        return;
+      }
+      pick(pool, +s.n).forEach(q => {
+        if (s.type === 'mcq') {
+          const o = shuffle(q.o.map((t, i) => ({ t, c: i === 0 })));
+          out.push(Object.assign(common(q), base, { type: 'mcq', options: o.map(x => x.t), correct: o.findIndex(x => x.c) }));
+        } else if (s.type === 'multi') {
+          const o = shuffle(q.o.map((t, i) => ({ t, c: (q.c || []).includes(i) })));
+          out.push(Object.assign(common(q), base, { type: 'multi', hint: 'кілька правильних відповідей', options: o.map(x => x.t), correct: o.map((x, i) => x.c ? i : -1).filter(i => i >= 0) }));
+        } else if (s.type === 'match') {
+          const pairs = shuffle(q.pairs), order = shuffle(pairs.map((_, i) => i));
+          out.push(Object.assign(common(q), base, { type: 'match', left: pairs.map(x => x[0]), right: order.map(i => pairs[i][1]), correct: pairs.map((_, i) => order.indexOf(i)) }));
+        } else if (s.type === 'short') {
+          out.push(Object.assign(common(q), base, { type: 'short', accepted: q.acc || [] }));
+        } else if (s.type === 'open') {
+          out.push(Object.assign(common(q), base, { type: 'open', points: 0 }));
+        } else if (s.type === 'label') {
+          const marks = (q.marks || []).map(m => ({ x: m.x, y: m.y, a: m.a }));
+          const opts = shuffle(Array.from(new Set(marks.map(m => m.a).concat(q.extra || []).filter(Boolean))));
+          out.push(Object.assign(common(q), base, { type: 'label', marks, options: opts }));
+        } else if (s.type === 'tap') {
+          out.push(Object.assign(common(q), base, { type: 'tap', targets: (q.targets || []).map(t => ({ x: t.x, y: t.y, r: t.r })) }));
+        }
+      });
+    });
+    out.forEach((q, i) => q.slot = 'q' + (i + 1));
+    return out;
+  }
+
+  /* ---------- Стан ---------- */
+  let questions = [], MAX_AUTO = 0;
+  let currentQ = 0, className = '', studentName = '', testScore = 0;
+  let answers = {}, timerInterval = null, timeLeft = 0;
+  let isSubmitted = false, isTestStarted = false, leaves = 0;
+  let awayStart = null, awayTotal = 0, paused = false, checkingAway = false, resumeLeft = null;
+  let myRound = null, myStop = null, starting = false;
+
+  /* ---------- Сервер ---------- */
+  function getJson(params) {
+    const u = SCRIPT_URL + '?' + params + '&r=' + Date.now();
+    return fetch(u).then(r => r.json());
+  }
+  function sendDataToScript(params) {
+    params.testId = TEST_ID;
+    if (PREVIEW) return Promise.resolve({ text: () => Promise.resolve('OK_PREVIEW') });
+    return fetch(SCRIPT_URL, { method: 'POST', body: new URLSearchParams(params), keepalive: true });
+  }
+
+  /* ---------- Ініціалізація ---------- */
+  function fatal(msg) {
+    $('wait-msg').classList.add('hidden'); $('form-container').classList.add('hidden');
+    const f = $('fatal'); f.textContent = msg; f.classList.remove('hidden');
+  }
+  function init() {
+    if (!TEST_ID) { fatal('Відкрийте посилання на роботу, яке дав вчитель.'); return; }
+    if (PREVIEW) {
+      let t = null;
+      try { t = JSON.parse(localStorage.getItem('preview_' + PREVIEW) || 'null'); } catch (e) {}
+      if (!t) { fatal('Немає даних для пробного запуску. Відкрийте його з редактора.'); return; }
+      $('preview-badge').classList.remove('hidden'); document.body.style.paddingTop = '40px';
+      TEST = t;
+      INFO = { title: t.title, subject: t.subject, topic: t.topic, groups: { 'Пробний запуск': ['Вчитель (пробний)'] }, awayOne: 9999, awayTotal: 9999, ctrl: { state: 'open', round: 1, stopSeq: 0 } };
+      applyInfo(); applyCtrl(INFO.ctrl); return;
+    }
+    if (!SCRIPT_URL) { fatal('Не задано адресу сервера (файл config.js).'); return; }
+    loadInfo();
+  }
+  function loadInfo() {
+    getJson('info=' + encodeURIComponent(TEST_ID)).then(info => {
+      if (info.error) { fatal(info.error === 'not_found' ? 'Цю роботу не знайдено або її ще не опубліковано.' : 'Помилка сервера.'); return; }
+      INFO = info; applyInfo(); applyCtrl(info.ctrl);
+      setInterval(pollCtrl, 4000);
+    }).catch(() => { $('wait-msg').textContent = 'Немає зв\'язку із сервером. Повторна спроба…'; setTimeout(loadInfo, 4000); });
+  }
+  function applyInfo() {
+    MAX_AWAY_ONE = +INFO.awayOne || 30; MAX_AWAY_TOTAL = +INFO.awayTotal || 90;
+    $('main-title').textContent = INFO.title || 'Самостійна робота';
+    $('subject').textContent = INFO.subject || '';
+    $('topic').textContent = INFO.topic || '';
+    document.title = INFO.title || 'Самостійна робота';
+    const cs = $('class-select'); cs.length = 1;
+    Object.keys(INFO.groups).sort((a, b) => a.localeCompare(b, 'uk', { numeric: true })).forEach(c => cs.add(new Option(c, c)));
+  }
+  $('class-select').addEventListener('change', () => {
+    const ss = $('student-select'), c = $('class-select').value;
+    ss.length = 0;
+    if (!c) { ss.add(new Option('— спочатку оберіть клас —', '')); ss.disabled = true; return; }
+    ss.add(new Option('— оберіть себе зі списку —', ''));
+    (INFO.groups[c] || []).slice().sort((a, b) => a.localeCompare(b, 'uk')).forEach(n => ss.add(new Option(n, n)));
+    ss.disabled = false;
+  });
+
+  /* ---------- Керування вчителя ---------- */
+  function pollCtrl() { if (PREVIEW || !INFO) return; getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(applyCtrl).catch(() => {}); }
+  function applyCtrl(c) {
+    if (isSubmitted || !c) return;
+    if (isTestStarted) {
+      if (c.state === 'closed' || c.stopSeq !== myStop) { setPaused(false); finishTest(true, true); return; }
+      setPaused(c.state === 'paused');
+      return;
+    }
+    let done = null; try { done = localStorage.getItem(LS_KEY); } catch (e) {}
+    const st = loadState(), rb = $('resume-box');
+    if (st && String(st.round) === String(c.round)) {
+      if (c.state === 'closed' || c.stopSeq !== st.stop) { restoreState(st); finishTest(true, true); return; }
+      $('device-blocked-msg').classList.add('hidden'); $('form-container').classList.add('hidden'); $('wait-msg').classList.add('hidden');
+      rb.classList.remove('hidden'); return;
+    }
+    if (st) clearState();
+    rb.classList.add('hidden');
+    const blocked = !PREVIEW && done === String(c.round);
+    const open = c.state === 'open';
+    $('device-blocked-msg').classList.toggle('hidden', !blocked);
+    $('form-container').classList.toggle('hidden', blocked);
+    const w = $('wait-msg');
+    w.classList.toggle('hidden', blocked || open);
+    w.textContent = c.state === 'paused'
+      ? 'Роботу призупинено вчителем. Зачекайте — кнопка «Розпочати» стане активною автоматично.'
+      : 'Вчитель ще не розпочав роботу. Зачекайте — кнопка «Розпочати» стане активною автоматично.';
+    if (!starting) $('start-btn').disabled = !open;
+  }
+
+  /* ---------- Захист від копіювання/вставки ---------- */
+  ['copy', 'cut', 'paste', 'dragstart', 'drop', 'selectstart'].forEach(ev =>
+    document.addEventListener(ev, e => { if (ev === 'selectstart' && /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName)) return; e.preventDefault(); }, true));
+  document.addEventListener('beforeinput', e => { if (/^insertFromPaste|^insertFromDrop|^insertFromYank|^insertReplacementText/.test(e.inputType || '')) e.preventDefault(); }, true);
+  document.addEventListener('contextmenu', e => e.preventDefault(), true);
+  document.addEventListener('selectionchange', () => {
+    const a = document.activeElement;
+    if (a && /^(TEXTAREA|INPUT)$/.test(a.tagName)) return;
+    const s = window.getSelection(); if (s && !s.isCollapsed && !$('res-sel')) s.removeAllRanges();
+  });
+  let pasteAttempts = 0, pasteWarnTimer = null;
+  const lastVal = new WeakMap();
+  const wordCount = s => s.split(/\s+/).filter(Boolean).length;
+  function warnPaste() { pasteAttempts++; const w = $('paste-warn'); w.classList.remove('hidden'); clearTimeout(pasteWarnTimer); pasteWarnTimer = setTimeout(() => w.classList.add('hidden'), 3000); }
+  document.addEventListener('focusin', e => { if (/^(TEXTAREA|INPUT)$/.test(e.target.tagName)) lastVal.set(e.target, e.target.value); }, true);
+  document.addEventListener('input', e => {
+    const el = e.target; if (!/^(TEXTAREA|INPUT)$/.test(el.tagName) || el.type === 'radio' || el.type === 'checkbox') return;
+    const prev = lastVal.has(el) ? lastVal.get(el) : '';
+    const grew = el.value.length - prev.length, moreWords = wordCount(el.value) - wordCount(prev);
+    const pasted = /^insertFromPaste|^insertFromDrop|^insertFromYank|^insertReplacementText/.test(e.inputType || '');
+    if (pasted || grew > 20 || moreWords > 2) { el.value = prev; warnPaste(); } else lastVal.set(el, el.value);
+  }, true);
+  function clearClipboard() { try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(' ').catch(() => {}); } catch (e) {} }
+  document.addEventListener('keydown', e => {
+    const k = (e.key || '').toLowerCase();
+    if (PREVIEW) return;
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a', 'u', 's', 'с', 'м', 'ч', 'ф', 'г', 'і'].includes(k)) e.preventDefault();
+    if (e.key === 'F12' || (e.shiftKey && e.key === 'Insert')) e.preventDefault();
+  });
+
+  /* ---------- Збереження стану (продовження після закриття сторінки) ---------- */
+  function saveState() {
+    if (PREVIEW || !isTestStarted || isSubmitted) return;
+    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL] })); } catch (e) {}
+  }
+  function clearState() { try { localStorage.removeItem(ST_KEY); } catch (e) {} }
+  function loadState() { if (PREVIEW) return null; try { return JSON.parse(localStorage.getItem(ST_KEY) || 'null'); } catch (e) { return null; } }
+  function restoreState(st) {
+    questions = st.questions; currentQ = st.currentQ; answers = st.answers; testScore = st.testScore;
+    leaves = (st.leaves || 0) + 1; pasteAttempts = st.pastes || 0; awayTotal = st.awayTotal || 0;
+    className = st.className; studentName = st.studentName; myRound = st.round; myStop = st.stop;
+    MAX_AUTO = questions.reduce((s, q) => s + q.points, 0); resumeLeft = st.timeLeft; isTestStarted = true;
+  }
+  $('resume-btn').addEventListener('click', () => {
+    const st = loadState(); if (!st) { location.reload(); return; }
+    restoreState(st);
+    $('start-screen').classList.add('hidden'); $('quiz-screen').classList.remove('hidden');
+    loadQuestion(); pollCtrl();
+  });
+
+  /* ---------- Вихід зі сторінки (м'які правила) і пауза ---------- */
+  function setPaused(p) {
+    if (p === paused) return;
+    paused = p; awayStart = null;
+    $('pause-overlay').classList.toggle('hidden', !p);
+    if (p) $('warn-overlay').classList.add('hidden');
+  }
+  const TOUCH = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+  let leaveBy = { hidden: 0, blur: 0 }, blurIgnored = 0;
+  const leaveInfoStr = () => 'приховано:' + leaveBy.hidden + '; blur:' + leaveBy.blur + '; blur ігноровано:' + blurIgnored;
+  function onLeave(kind) {
+    if (PREVIEW || !isTestStarted || isSubmitted || paused || awayStart !== null) return;
+    awayStart = Date.now(); leaves++; leaveBy[kind] = (leaveBy[kind] || 0) + 1;
+    saveState(); sendPartial();
+  }
+  function evalAway(secs) {
+    awayTotal += secs;
+    if (secs > MAX_AWAY_ONE || awayTotal > MAX_AWAY_TOTAL) { finishTest(true); return; }
+    $('warn-text').textContent = 'Ви були поза сторінкою ' + secs + ' с. Разом за роботу: ' + awayTotal + ' з ' + MAX_AWAY_TOTAL + ' с (одна відсутність — не довше ' + MAX_AWAY_ONE + ' с). Не затримуйтесь надовго.';
+    $('warn-overlay').classList.remove('hidden');
+  }
+  function onReturn() {
+    if (PREVIEW || !isTestStarted || isSubmitted || awayStart === null || document.hidden) return;
+    const secs = Math.round((Date.now() - awayStart) / 1000);
+    awayStart = null;
+    const go = () => { if (!paused && !isSubmitted) evalAway(secs); };
+    getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(c => { applyCtrl(c); go(); }).catch(go);
+  }
+  setInterval(() => {
+    if (PREVIEW || !isTestStarted || isSubmitted || paused || awayStart === null || checkingAway) return;
+    const cur = (Date.now() - awayStart) / 1000;
+    if (cur > MAX_AWAY_ONE || awayTotal + cur > MAX_AWAY_TOTAL) {
+      checkingAway = true;
+      getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(applyCtrl).catch(() => {}).then(() => {
+        checkingAway = false;
+        if (!paused && !isSubmitted && awayStart !== null) { awayTotal += Math.round(cur); awayStart = null; finishTest(true); }
+      });
+    }
+  }, 1000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) onLeave('hidden'); else onReturn(); });
+  window.addEventListener('blur', () => {
+    // клік по відео YouTube (iframe) — це не вихід зі сторінки
+    if (document.activeElement && document.activeElement.tagName === 'IFRAME') return;
+    if (TOUCH) { if (isTestStarted && !isSubmitted) blurIgnored++; } else onLeave('blur');
+  });
+  window.addEventListener('focus', onReturn);
+  window.addEventListener('pagehide', () => { if (isTestStarted && !isSubmitted) { saveState(); sendPartial(true); } });
+  $('warn-btn').addEventListener('click', () => $('warn-overlay').classList.add('hidden'));
+
+  /* ---------- Початок ---------- */
+  $('start-btn').addEventListener('click', startTest);
+  function resetStartBtn() { starting = false; $('start-btn').textContent = 'Розпочати'; pollCtrl(); }
+  function begin(test) {
+    TEST = test;
+    questions = buildVariant(TEST);
+    if (!questions.length) { alert('У цій роботі ще немає питань.'); resetStartBtn(); return; }
+    MAX_AUTO = questions.reduce((s, q) => s + q.points, 0);
+    isTestStarted = true;
+    $('start-screen').classList.add('hidden'); $('quiz-screen').classList.remove('hidden');
+    loadQuestion();
+  }
+  function startTest() {
+    className = $('class-select').value; studentName = $('student-select').value;
+    const btn = $('start-btn');
+    if (!className || !studentName) { alert('Оберіть свій клас та прізвище зі списку!'); return; }
+    starting = true; btn.disabled = true; btn.textContent = 'Завантаження...';
+    clearClipboard();
+    if (PREVIEW) { myRound = 1; myStop = 0; begin(TEST); return; }
+    sendDataToScript({ action: 'start', className, studentName }).then(r => r.text()).then(status => {
+      if (status === 'ALREADY_STARTED') { alert('Увага! Цей учень уже розпочинав або склав цю роботу. Зверніться до вчителя.'); resetStartBtn(); }
+      else if (status === 'NOT_OPEN') { alert('Вчитель ще не розпочав роботу (або її зупинено). Зачекайте.'); resetStartBtn(); }
+      else if (status === 'NOT_ASSIGNED' || status === 'NO_TEST') { alert('Ця робота не призначена для вашої групи.'); resetStartBtn(); }
+      else if (status.indexOf('OK_STARTED') === 0) {
+        const parts = status.split('|');
+        myRound = parseInt(parts[1], 10) || 1; myStop = parseInt(parts[2], 10) || 0;
+        try { localStorage.setItem(LS_KEY, String(myRound)); } catch (e) {}
+        getJson('body=' + encodeURIComponent(TEST_ID)).then(b => {
+          if (b.test) begin(b.test); else { alert('Не вдалося завантажити питання (' + (b.error || '?') + '). Зверніться до вчителя.'); resetStartBtn(); }
+        }).catch(() => { alert('Помилка з\'єднання під час завантаження питань. Спробуйте ще раз або оновіть сторінку — роботу можна буде продовжити.'); resetStartBtn(); });
+      } else { alert('Сервер зайнятий або сталася помилка (' + status + '). Спробуйте ще раз.'); resetStartBtn(); }
+    }).catch(() => { alert('Помилка з\'єднання з сервером. Перевірте інтернет.'); resetStartBtn(); });
+  }
+
+  /* ---------- Відображення питань ---------- */
+  function loadQuestion() {
+    clearInterval(timerInterval);
+    const q = questions[currentQ];
+    timeLeft = (resumeLeft !== null ? resumeLeft : q.time); resumeLeft = null;
+    $('timer').textContent = timeLeft;
+    $('progress').textContent = 'Питання ' + (currentQ + 1) + ' з ' + questions.length;
+    $('bar').style.width = (currentQ / questions.length * 100) + '%';
+    $('next-btn').textContent = currentQ === questions.length - 1 ? 'Завершити' : 'Наступне питання';
+
+    let h = '';
+    const inStage = q.type === 'label' || q.type === 'tap';
+    if (!inStage) h += imgHtml(q);
+    h += videoHtml(q);
+    h += '<div class="question-title">' + (currentQ + 1) + '. ' + rich(q.text) + (q.hint ? ' <span class="hint">(' + esc(q.hint) + ')</span>' : '') + '</div>';
+
+    if (q.type === 'mcq') {
+      h += '<div class="options">' + q.options.map((o, i) => '<label><input type="radio" name="opt" value="' + i + '"><span>' + esc(o) + '</span></label>').join('') + '</div>';
+    } else if (q.type === 'multi') {
+      h += '<div class="options">' + q.options.map((o, i) => '<label><input type="checkbox" name="opt" value="' + i + '"><span>' + esc(o) + '</span></label>').join('') + '</div>';
+    } else if (q.type === 'tf') {
+      h += q.statements.map((s, i) => '<div class="pair stack"><div class="left">' + esc(s.t) + '</div><select data-i="' + i + '"><option value="">—</option><option value="1">Так</option><option value="0">Ні</option></select></div>').join('');
+    } else if (q.type === 'match') {
+      const opts = q.right.map((r, i) => '<option value="' + i + '">' + esc(r) + '</option>').join('');
+      h += q.left.map((l, i) => '<div class="pair stack"><div class="left">' + esc(l) + '</div><select data-i="' + i + '"><option value="">— оберіть —</option>' + opts + '</select></div>').join('');
+    } else if (q.type === 'short') {
+      h += '<input type="text" id="short-ans" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Ваша відповідь" onpaste="return false;" oncopy="return false;" oncut="return false;" ondrop="return false;">';
+    } else if (q.type === 'open') {
+      h += '<textarea id="open-ans" rows="6" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Введіть вашу відповідь сюди..." onpaste="return false;" oncopy="return false;" oncut="return false;" ondrop="return false;"></textarea>';
+    } else if (q.type === 'label') {
+      h += '<div class="stage" id="stage"><img src="' + esc(q.img) + '" alt="" draggable="false">' +
+        q.marks.map((m, i) => '<span class="dot" data-i="' + i + '" style="left:' + (m.x * 100) + '%;top:' + (m.y * 100) + '%">' + (i + 1) + '</span>').join('') + '</div>';
+      const opts = q.options.map((o, i) => '<option value="' + i + '">' + esc(o) + '</option>').join('');
+      h += q.marks.map((m, i) => '<div class="pair"><span class="num">' + (i + 1) + '</span><select data-i="' + i + '"><option value="">— оберіть підпис —</option>' + opts + '</select></div>').join('');
+    } else if (q.type === 'tap') {
+      h += '<div class="stage tap" id="stage"><img src="' + esc(q.img) + '" alt="" draggable="false"></div><div class="hint-small" id="tap-hint">Торкніться потрібного місця на малюнку. Можна змінити вибір, торкнувшись іншого місця.</div>';
+    }
+    $('question-container').innerHTML = h;
+    if (q.type === 'label') wireLabel(q);
+    if (q.type === 'tap') wireTap(q);
+
+    saveState();
+    $('timer-box').classList.remove('low');
+    timerInterval = setInterval(() => {
+      if (paused) return;
+      timeLeft--; saveState();
+      $('timer').textContent = Math.max(timeLeft, 0);
+      $('timer-box').classList.toggle('low', timeLeft <= 10);
+      if (timeLeft <= 0) { clearInterval(timerInterval); nextQuestion(); }
+    }, 1000);
+  }
+
+  function wireLabel(q) {
+    const box = $('question-container');
+    const sels = [...box.querySelectorAll('select')], dots = [...box.querySelectorAll('.dot')];
+    sels.forEach((sel, i) => {
+      sel.addEventListener('focus', () => dots[i].classList.add('active'));
+      sel.addEventListener('blur', () => dots[i].classList.remove('active'));
+    });
+    dots.forEach((d, i) => d.addEventListener('click', () => { sels[i].focus(); sels[i].scrollIntoView({ block: 'center', behavior: 'smooth' }); }));
+  }
+  function wireTap(q) {
+    const stage = $('stage'), img = stage.querySelector('img');
+    const draw = () => {
+      stage.querySelectorAll('.pin').forEach(p => p.remove());
+      if (q._tap) { const p = document.createElement('span'); p.className = 'pin'; p.style.left = (q._tap.x * 100) + '%'; p.style.top = (q._tap.y * 100) + '%'; stage.appendChild(p); }
+    };
+    draw();
+    stage.addEventListener('click', e => {
+      const r = img.getBoundingClientRect();
+      if (!r.width) return;
+      q._tap = { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+      q._ar = r.height / r.width;
+      draw(); saveState();
+    });
+  }
+
+  /* ---------- Перевірка ---------- */
+  const norm = s => (s || '').toLowerCase().replace(/[\s.,!?'’ʼ"«»\-]/g, '');
+  function shortOk(ans, accepted) {
+    const a = norm(ans); if (!a) return false;
+    return accepted.some(x => { const n = norm(x); if (!n) return false; return /^\d+$/.test(n) ? a.replace(/\D/g, '') === n : a.includes(n); });
+  }
+  function saveCurrentAnswer() {
+    const q = questions[currentQ];
+    if (!q || q.saved) return;
+    const box = $('question-container');
+    let shown = '', earned = 0;
+    if (q.type === 'mcq') {
+      const s = box.querySelector('input[name="opt"]:checked');
+      if (s) { shown = q.options[+s.value]; if (+s.value === q.correct) earned = q.points; }
+    } else if (q.type === 'multi') {
+      const sel = [...box.querySelectorAll('input[name="opt"]:checked')].map(x => +x.value);
+      shown = sel.map(i => q.options[i]).join('; ');
+      const right = sel.filter(i => q.correct.includes(i)).length;
+      earned = q.points * Math.max(0, (right - (sel.length - right)) / q.correct.length);
+    } else if (q.type === 'tf') {
+      const per = q.points / q.statements.length, parts = [];
+      box.querySelectorAll('select').forEach(sel => {
+        const i = +sel.dataset.i;
+        parts.push((i + 1) + ')' + (sel.value === '' ? '—' : (sel.value === '1' ? 'Так' : 'Ні')));
+        if (sel.value !== '' && (sel.value === '1') === !!q.statements[i].c) earned += per;
+      });
+      shown = parts.join(' ');
+    } else if (q.type === 'match') {
+      const per = q.points / q.left.length, parts = [];
+      box.querySelectorAll('select').forEach(sel => {
+        const i = +sel.dataset.i;
+        parts.push(q.left[i] + '→' + (sel.value === '' ? '—' : q.right[+sel.value]));
+        if (sel.value !== '' && +sel.value === q.correct[i]) earned += per;
+      });
+      shown = parts.join('; ');
+    } else if (q.type === 'short') {
+      const el = $('short-ans'); shown = el ? el.value.trim() : '';
+      if (shortOk(shown, q.accepted)) earned = q.points;
+    } else if (q.type === 'label') {
+      const per = q.points / q.marks.length, parts = [];
+      box.querySelectorAll('select').forEach(sel => {
+        const i = +sel.dataset.i, v = sel.value === '' ? '' : q.options[+sel.value];
+        parts.push((i + 1) + ')' + (v || '—'));
+        if (v && v === q.marks[i].a) earned += per;
+      });
+      shown = parts.join('; ');
+    } else if (q.type === 'tap') {
+      if (q._tap) {
+        const ar = q._ar || 0.75, W = 1, H = ar;
+        const hit = q.targets.some(t => Math.hypot((q._tap.x - t.x) * W, (q._tap.y - t.y) * H) <= t.r * W);
+        if (hit) earned = q.points;
+        shown = '(' + Math.round(q._tap.x * 100) + '%, ' + Math.round(q._tap.y * 100) + '%)';
+      }
+    } else {
+      const el = $('open-ans'); shown = el ? el.value.trim() : '';
+    }
+    earned = Math.round(earned * 100) / 100;
+    testScore += earned;
+    answers[q.slot] = q.type === 'open'
+      ? '[' + q.pid + '] Питання: ' + q.text + ' — Відповідь: ' + shown
+      : '[' + q.pid + ' | +' + earned + '] ' + shown;
+    q.saved = true;
+  }
+  $('next-btn').addEventListener('click', nextQuestion);
+  function nextQuestion() {
+    clearInterval(timerInterval); clearClipboard();
+    saveCurrentAnswer();
+    currentQ++;
+    if (currentQ < questions.length) loadQuestion(); else finishTest(false);
+  }
+
+  function submitResults(interrupted, byTeacher) {
+    if (isSubmitted || !isTestStarted) return;
+    isSubmitted = true; clearState();
+    if (interrupted && currentQ < questions.length) saveCurrentAnswer();
+    sendDataToScript({
+      action: 'submit', className, studentName,
+      testScore: String(Math.round(testScore * 100) / 100), answers: JSON.stringify(answers),
+      isInterrupted: interrupted ? 'true' : 'false', byTeacher: byTeacher ? 'true' : 'false',
+      round: String(myRound || ''), leaves: String(leaves), pastes: String(pasteAttempts),
+      awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr()
+    });
+  }
+  function sendPartial(unloading) {
+    if (!isTestStarted || isSubmitted) return;
+    const now = Date.now();
+    if (!unloading && now - (sendPartial.t || 0) < 5000) return;
+    sendPartial.t = now;
+    sendDataToScript({
+      action: 'submit', className, studentName, partial: 'true', round: String(myRound || ''),
+      testScore: String(Math.round(testScore * 100) / 100), answers: JSON.stringify(answers),
+      isInterrupted: 'true', leaves: String(leaves), pastes: String(pasteAttempts), awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr()
+    });
+  }
+  function finishTest(forced, byTeacher) {
+    clearInterval(timerInterval);
+    $('warn-overlay').classList.add('hidden'); $('quiz-screen').classList.add('hidden'); $('start-screen').classList.add('hidden'); $('pause-overlay').classList.add('hidden');
+    $('end-screen').classList.remove('hidden');
+    if (forced) $('end-msg').textContent = byTeacher
+      ? 'Вчитель зупинив роботу. Ваші відповіді збережено й відправлено вчителю.'
+      : 'Роботу завершено достроково: ви надто довго були поза сторінкою. Відповіді відправлено вчителю.';
+    submitResults(forced, byTeacher);
+    if (PREVIEW) {
+      $('end-msg').textContent = 'Пробний запуск завершено. Автоматично нараховано ' + (Math.round(testScore * 100) / 100) + ' з ' + (Math.round(MAX_AUTO * 100) / 100) + ' балів (відкриті питання перевіряються на сервері після справжнього запуску).';
+      const rl = $('preview-result'); rl.classList.remove('hidden');
+      rl.innerHTML = '<div class="res-list" id="res-sel">' + Object.keys(answers).map(k => '<div><b>' + esc(k) + '</b> ' + esc(answers[k]) + '</div>').join('') + '</div>';
+    }
+  }
+
+  /* Для вчителя: 12 швидких кліків по заголовку скидають блокування пристрою */
+  let clickCount = 0, clickTimer = null;
+  $('main-title').addEventListener('click', () => {
+    clickCount++; clearTimeout(clickTimer);
+    if (clickCount >= 12) {
+      try { localStorage.removeItem(LS_KEY); localStorage.removeItem(ST_KEY); } catch (e) {}
+      alert('Блокування пристрою скинуто!'); location.reload(); clickCount = 0;
+    } else clickTimer = setTimeout(() => { clickCount = 0; }, 1000);
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
