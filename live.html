@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Живий урок</title>
+<script src="config.js"></script>
+<style>
+  :root { --bg:#eef1f4; --card:#fff; --ink:#14212b; --muted:#5d6b76; --line:#d6dde3; --accent:#1b4fd8; --accent-dark:#153cab; --ok:#15803d; --ok-soft:#e1f3e8; --bad:#b42318; --bad-soft:#fdeceb; --info-soft:#e6edfc; }
+  * { box-sizing:border-box; }
+  html { -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:18px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; min-height:100vh; display:flex; justify-content:center; padding:16px; }
+  .wrap { width:100%; max-width:760px; }
+  .card { background:var(--card); border-radius:20px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,.05),0 12px 32px rgba(20,33,43,.10); }
+  .top { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:14px; margin-bottom:14px; }
+  h1 { font-size:26px; line-height:1.2; margin:0 0 10px; }
+  .kick { font-size:14px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
+  .text { color:#2a3a46; margin:0 0 14px; }
+  .prompt { background:var(--info-soft); border-radius:14px; padding:14px 16px; font-weight:700; font-size:20px; margin:16px 0; }
+  select { width:100%; font:inherit; padding:13px; border:1.5px solid var(--line); border-radius:12px; background:#fff; margin:6px 0 14px; }
+  label.f { font-size:14px; color:var(--muted); font-weight:600; }
+  .btn { display:block; width:100%; border:0; border-radius:16px; padding:20px 18px; font:inherit; font-size:20px; font-weight:700; background:var(--accent); color:#fff; cursor:pointer; text-align:left; margin-top:12px; }
+  .btn:active { background:var(--accent-dark); }
+  .btn.mid { text-align:center; }
+  .btn[disabled] { opacity:.5; cursor:default; }
+  .opt { background:#fff; color:var(--ink); border:2.5px solid var(--line); }
+  .opt:active { background:var(--info-soft); }
+  .opt.sel { border-color:var(--accent); background:var(--info-soft); }
+  .opt.right { border-color:var(--ok); background:var(--ok-soft); }
+  .opt.wrong { border-color:var(--bad); background:var(--bad-soft); }
+  .done { margin-top:14px; padding:14px 16px; border-radius:14px; background:var(--ok-soft); color:#0f5d2c; font-weight:700; }
+  .wait { margin-top:16px; color:var(--muted); text-align:center; }
+  .res { border-radius:18px; padding:22px; margin-top:16px; }
+  .res.good { background:var(--ok-soft); color:#0f5d2c; } .res.bad { background:var(--bad-soft); color:#8f1d12; } .res.info { background:var(--info-soft); }
+  .res h2 { margin:0 0 8px; font-size:30px; line-height:1.1; }
+  .res p { margin:0; font-size:18px; color:var(--ink); }
+  .net { position:fixed; left:12px; right:12px; bottom:12px; background:#14212b; color:#fff; border-radius:12px; padding:10px 14px; text-align:center; font-size:15px; }
+  .hidden { display:none !important; }
+  @media (max-width:520px) { body { padding:10px; } .card { padding:18px; } h1 { font-size:23px; } }
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card" id="app"><div class="wait">Завантаження…</div></div></div>
+<div class="net hidden" id="net">Немає зв'язку, пробуємо ще раз…</div>
+<script>
+(function () {
+  const $ = id => document.getElementById(id), app = $('app');
+  const ID = new URLSearchParams(location.search).get('s') || '';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const J = p => fetch(SCRIPT_URL + '?' + p + '&r=' + Date.now()).then(r => r.json());
+  let who = null, last = '', fails = 0, timer = null, busy = false;
+  const msg = (t, h) => { app.innerHTML = (h ? '<h1>' + esc(h) + '</h1>' : '') + '<div class="wait">' + esc(t) + '</div>'; };
+
+  async function init() {
+    if (!ID) return msg('Відкрийте посилання, яке дав вчитель.', 'Живий урок');
+    let info; try { info = await J('live_info=' + encodeURIComponent(ID)); } catch (e) { return msg('Немає зв\'язку із сервером. Оновіть сторінку.'); }
+    if (info.error) return msg('Урок не знайдено або вже завершено. Попросіть вчителя нове посилання.');
+    let saved = null; try { saved = JSON.parse(localStorage.getItem('live_who_' + ID) || 'null'); } catch (e) {}
+    if (saved && info.groups[saved.cls] && info.groups[saved.cls].indexOf(saved.name) >= 0) { who = saved; return start(); }
+    const gs = Object.keys(info.groups);
+    app.innerHTML = '<div class="kick">Живий урок</div><h1>' + esc(info.title) + '</h1>' +
+      '<label class="f" for="c">Клас</label><select id="c"><option value="">— оберіть —</option>' + gs.map(g => '<option>' + esc(g) + '</option>').join('') + '</select>' +
+      '<label class="f" for="n">Прізвище та ім\'я</label><select id="n" disabled><option value="">— спочатку клас —</option></select>' +
+      '<button class="btn mid" id="go" disabled>Приєднатися</button>';
+    const c = $('c'), n = $('n'), go = $('go');
+    c.onchange = () => { n.innerHTML = '<option value="">— оберіть —</option>' + (info.groups[c.value] || []).map(x => '<option>' + esc(x) + '</option>').join(''); n.disabled = !c.value; go.disabled = true; };
+    n.onchange = () => { go.disabled = !n.value; };
+    go.onclick = () => { who = { cls: c.value, name: n.value }; try { localStorage.setItem('live_who_' + ID, JSON.stringify(who)); } catch (e) {} start(); };
+  }
+  function start() { poll(); timer = setInterval(poll, 2500); }
+  const q = () => 'cls=' + encodeURIComponent(who.cls) + '&name=' + encodeURIComponent(who.name);
+  async function poll() {
+    if (busy) return;
+    try {
+      const s = await J('live=' + encodeURIComponent(ID) + '&' + q());
+      fails = 0; $('net').classList.add('hidden');
+      if (s.error === 'not_found') { clearInterval(timer); return msg('Урок завершено. Дякуємо!'); }
+      if (s.error) { clearInterval(timer); try { localStorage.removeItem('live_who_' + ID); } catch (e) {} return msg('Вас немає у списку цього уроку. Оновіть сторінку й оберіть себе заново.'); }
+      const key = JSON.stringify([s.step, s.revealed, s.my, s.screen.id, s.role, s.meter && s.meter.series]);
+      if (key !== last) { last = key; render(s); }
+    } catch (e) { if (++fails >= 2) $('net').classList.remove('hidden'); }
+  }
+  function chart(m, dark) {
+    const W = 600, H = 250, L = 46, R = 14, T = 14, B = 26, n = Math.max(m.series.length - 1, m.cap || 0, 6);
+    const X = i => L + (W - L - R) * i / n, Y = v => T + (H - T - B) * (1 - v / m.start);
+    const pts = m.series.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+    const last = m.series.length - 1, ink = dark ? '#eef3f7' : '#14212b', mut = dark ? '#9db0bf' : '#5d6b76', line = dark ? '#ff6b5e' : '#b42318';
+    let g = '';
+    [0, .5, 1].forEach(f => { const y = Y(m.start * f); g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="' + mut + '" stroke-opacity=".25"/><text x="' + (L - 8) + '" y="' + (y + 4) + '" text-anchor="end" font-size="13" fill="' + mut + '">' + Math.round(m.start * f) + '</text>'; });
+    const ty = Y(m.threshold);
+    g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + ty + '" y2="' + ty + '" stroke="#f2a900" stroke-width="2" stroke-dasharray="7 5"/><text x="' + (W - R) + '" y="' + (ty - 6) + '" text-anchor="end" font-size="13" fill="#f2a900">поріг відступу</text>';
+    g += '<polygon points="' + X(0) + ',' + Y(0) + ' ' + pts + ' ' + X(last) + ',' + Y(0) + '" fill="' + line + '" fill-opacity=".14"/>';
+    g += '<polyline points="' + pts + '" fill="none" stroke="' + line + '" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + X(last) + '" cy="' + Y(m.now) + '" r="7" fill="' + line + '"/>';
+    return '<div style="margin:14px 0"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b>' + esc(m.label) + '</b><span style="font-size:32px;font-weight:800;color:' + line + '">' + Math.round(m.now) + ' <span style="font-size:15px;color:' + mut + '">' + esc(m.unit) + '</span></span></div>' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" role="img" aria-label="Графік: ' + esc(m.label) + ' зараз ' + Math.round(m.now) + '">' + g + '</svg></div>';
+  }
+  function render(s) {
+    const sc = s.screen, role = s.role, rcol = role === 'ark' ? '#1b4fd8' : '#b42318', rbg = role === 'ark' ? '#e6edfc' : '#fdeceb';
+    let h = '<div class="top"><span>' + esc(who.name) + ' · ' + esc(who.cls) + '</span><span>Крок ' + (s.step + 1) + ' з ' + s.total + '</span></div>';
+    h += '<div style="display:inline-block;background:' + rbg + ';color:' + rcol + ';font-weight:800;border-radius:999px;padding:6px 14px;font-size:15px;margin-bottom:12px">' + esc(s.roleInfo.title) + '</div>';
+    h += '<div class="kick">' + esc(sc.title || '') + '</div>';
+    if (sc.kind === 'info') {
+      h += '<h1>' + esc(sc.title) + '</h1>' + (sc.text ? '<p class="text">' + esc(sc.text) + '</p>' : '');
+      if (s.step === 0) h += '<div class="res info" style="margin:0 0 14px"><b>Ваша роль: ' + esc(s.roleInfo.title) + '.</b><p style="margin-top:6px">' + esc(s.roleInfo.text) + '</p></div>';
+      if (sc.prompt) h += '<div class="prompt">' + esc(sc.prompt) + '</div>';
+      h += '<div class="wait">Чекайте, поки вчитель продовжить.</div>';
+    } else {
+      h += '<div class="prompt" style="margin-top:6px">' + esc(sc.prompt) + '</div>';
+      if (sc.hint) h += '<p class="text" style="margin-top:-6px">' + esc(sc.hint) + '</p>';
+      if (sc.kind === 'press') {
+        if (s.my !== null) h += '<div class="done">✓ Ваш голос враховано</div>';
+        else if (!s.revealed) h += '<button class="btn" data-v="1">' + esc(sc.button || 'Голосувати') + '</button>';
+      } else {
+        h += sc.options.map((o, i) => {
+          let cl = 'btn opt' + (String(s.my) === String(i) ? ' sel' : '');
+          if (s.revealed && typeof s.correct === 'number') { if (i === s.correct) cl = 'btn opt right'; else if (String(s.my) === String(i)) cl = 'btn opt wrong'; }
+          return '<button class="' + cl + '" data-v="' + i + '"' + (s.revealed ? ' disabled' : '') + '>' + esc(o) + '</button>';
+        }).join('');
+        if (!s.revealed && s.my !== null) h += '<div class="done">✓ Вибір прийнято. Можна змінити, поки вчитель не завершив крок.</div>';
+      }
+      if (s.meter) h += chart(s.meter, false);
+      if (s.revealed && sc.kind === 'press' && s.my === null) h += '<div class="wait">Голосування закрите.</div>';
+      if (!s.revealed && s.my === null) h += '<div class="wait">Оберіть дію, вчитель побачить ваш вибір.</div>';
+      else if (!s.revealed) h += '<div class="wait">Чекайте на результат на екрані.</div>';
+    }
+    if (s.revealed && s.result) h += '<div class="res ' + esc(s.result.tone) + '"><h2>' + esc(s.result.title) + '</h2><p>' + esc(s.result.text) + '</p></div>';
+    app.innerHTML = h;
+    app.querySelectorAll('[data-v]').forEach(b => b.onclick = () => vote(s.screen.id, b.dataset.v));
+  }
+  async function vote(sid, v) {
+    if (busy) return; busy = true;
+    try { await J('live_vote=' + encodeURIComponent(ID) + '&' + q() + '&screen=' + encodeURIComponent(sid) + '&v=' + encodeURIComponent(v)); } catch (e) {}
+    busy = false; last = ''; poll();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
