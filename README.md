@@ -9,9 +9,8 @@
 [![GitHub Pages](https://img.shields.io/badge/Hosted%20with-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://pages.github.com/)
 [![JS Vanilla](https://img.shields.io/badge/Code-Vanilla%20JS-yellow?style=for-the-badge&logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![Backend](https://img.shields.io/badge/Backend-Google%20Apps%20Script-green?style=for-the-badge&logo=google)](https://script.google.com/)
-[![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
 
-[**Спробувати Демо (Учень)**](index.html) • [**Кабінет Вчителя**](editor.html) • [**Інструкція**](#швидкий-старт-за-5-хвилин)
+[**Спробувати Демо (Учень)**](lefruite.github.io/index.html) • [**Кабінет Вчителя**](lefruite.github.io/editor.html) • [**Інструкція**](#швидкий-старт-за-5-хвилин)
 
 </div>
 
