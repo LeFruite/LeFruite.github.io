@@ -67,6 +67,8 @@
   .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--warn); background: rgba(192,57,43,.25); pointer-events: none; }
 
   #warn-overlay { position: fixed; inset: 0; background: rgba(192,57,43,.96); color: #fff; display: flex; align-items: center; justify-content: center; text-align: center; padding: 30px; font-size: 20px; z-index: 9999; }
+  #fs-overlay { position: fixed; inset: 0; background: rgba(18,32,42,.97); color: #fff; display: flex; align-items: center; justify-content: center; text-align: center; padding: 30px; font-size: 20px; z-index: 10000; }
+  #fs-overlay button { max-width: 280px; margin: 18px auto 0; }
   #warn-overlay button { background: #fff; color: var(--warn); max-width: 280px; margin-left: auto; margin-right: auto; }
   #pause-overlay { position: fixed; inset: 0; background: #22343a; color: #fff; display: flex; align-items: center; justify-content: center; text-align: center; padding: 30px; z-index: 10000; font-size: 19px; }
   #preview-badge { position: fixed; top: 0; left: 0; right: 0; background: var(--amber); color: #fff; text-align: center; font-weight: 700; font-size: 13px; padding: 3px; z-index: 5; }
@@ -127,6 +129,7 @@
     <p>Вчитель призупинив роботу (наприклад, через повітряну тривогу). Таймер зупинено, сторінку можна залишити. Робота продовжиться автоматично — не закривайте цю вкладку.</p>
   </div>
 </div>
+<div id="fs-overlay" class="hidden"><div><div>Робота йде у повноекранному режимі. Поверніться на повний екран, щоб продовжити.</div><button id="fs-btn">На повний екран</button></div></div>
 <div id="warn-overlay" class="hidden">
   <div>
     <div id="warn-text"></div>
@@ -223,6 +226,7 @@
   let answers = {}, timerInterval = null, timeLeft = 0;
   let isSubmitted = false, isTestStarted = false, leaves = 0;
   let awayStart = null, awayTotal = 0, paused = false, checkingAway = false, resumeLeft = null;
+  let leaveLog = [], qTime = {}, qStartTs = 0, curLeave = null, fsOn = false;
   let myRound = null, myStop = null, starting = false;
 
   /* ---------- Сервер ---------- */
@@ -249,7 +253,7 @@
     applyInfo(); applyCtrl(INFO.ctrl);
   }
   function init() {
-    if (!TEST_ID) { fatal('Відкрийте посилання на роботу, яке дав вчитель.'); return; }
+    if (!TEST_ID) { location.replace('docs.html'); return; }   // відкрито корінь сайту без посилання на роботу — показуємо документацію
     if (PREVIEW) {
       let t = null;
       try { t = JSON.parse(localStorage.getItem('preview_' + PREVIEW) || 'null'); } catch (e) {}
@@ -277,7 +281,7 @@
     }).catch(() => { $('wait-msg').textContent = 'Немає зв\'язку із сервером. Повторна спроба…'; setTimeout(loadInfo, 4000); });
   }
   function applyInfo() {
-    MAX_AWAY_ONE = +INFO.awayOne || 30; MAX_AWAY_TOTAL = +INFO.awayTotal || 90;
+    MAX_AWAY_ONE = +INFO.awayOne || 5; MAX_AWAY_TOTAL = +INFO.awayTotal || 15;
     $('main-title').textContent = INFO.title || 'Самостійна робота';
     $('subject').textContent = INFO.subject || '';
     $('topic').textContent = INFO.topic || '';
@@ -357,13 +361,15 @@
   /* ---------- Збереження стану (продовження після закриття сторінки) ---------- */
   function saveState() {
     if (PREVIEW || !isTestStarted || isSubmitted) return;
-    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL] })); } catch (e) {}
+    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, leaveLog, qTime, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL] })); } catch (e) {}
   }
   function clearState() { try { localStorage.removeItem(ST_KEY); } catch (e) {} }
   function loadState() { if (PREVIEW) return null; try { return JSON.parse(localStorage.getItem(ST_KEY) || 'null'); } catch (e) { return null; } }
   function restoreState(st) {
     questions = st.questions; currentQ = st.currentQ; answers = st.answers; testScore = st.testScore;
     leaves = (st.leaves || 0) + 1; pasteAttempts = st.pastes || 0; awayTotal = st.awayTotal || 0;
+    leaveLog = st.leaveLog || []; qTime = st.qTime || {};
+    leaveLog.push({ s: (st.questions[st.currentQ] || {}).slot || '', k: 'resume', d: 0 });
     className = st.className; studentName = st.studentName; myRound = st.round; myStop = st.stop;
     MAX_AUTO = questions.reduce((s, q) => s + q.points, 0); resumeLeft = st.timeLeft; isTestStarted = true;
   }
@@ -381,26 +387,41 @@
     $('pause-overlay').classList.toggle('hidden', !p);
     if (p) $('warn-overlay').classList.add('hidden');
   }
-  const TOUCH = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+  // Основний пристрій вводу — дотик (телефон/планшет)? Ноутбуки з сенсорним екраном сюди не потрапляють.
+  const COARSE = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
   let leaveBy = { hidden: 0, blur: 0 }, blurIgnored = 0;
   const leaveInfoStr = () => 'приховано:' + leaveBy.hidden + '; blur:' + leaveBy.blur + '; blur ігноровано:' + blurIgnored;
+  const curSlot = () => (questions[currentQ] && questions[currentQ].slot) || '';
+  const leaveLogStr = () => leaveLog.map(e => e.s + '|' + e.k + '|' + (e.d || 0)).join(';');
+  const qTimeStr = () => Object.keys(qTime).map(k => k + ':' + qTime[k]).join(';');
+  const fsLost = () => fsOn && !document.fullscreenElement;
   function onLeave(kind) {
     if (PREVIEW || !isTestStarted || isSubmitted || paused || awayStart !== null) return;
     awayStart = Date.now(); leaves++; leaveBy[kind] = (leaveBy[kind] || 0) + 1;
+    curLeave = { s: curSlot(), k: kind, d: 0 }; leaveLog.push(curLeave);
     saveState(); sendPartial();
   }
   function evalAway(secs) {
     awayTotal += secs;
+    if (curLeave) curLeave.d = secs;
     if (secs > MAX_AWAY_ONE || awayTotal > MAX_AWAY_TOTAL) { finishTest(true); return; }
-    $('warn-text').textContent = 'Ви були поза сторінкою ' + secs + ' с. Разом за роботу: ' + awayTotal + ' з ' + MAX_AWAY_TOTAL + ' с (одна відсутність — не довше ' + MAX_AWAY_ONE + ' с). Не затримуйтесь надовго.';
+    const where = curLeave && curLeave.s ? ' (питання ' + curLeave.s.slice(1) + ')' : '';
+    $('warn-text').textContent = 'Вихід зі сторінки зафіксовано' + where + ': ' + (secs < 1 ? 'менше секунди' : secs + ' с') + '. Разом за роботу: ' + awayTotal + ' з ' + MAX_AWAY_TOTAL + ' с (одна відсутність — не довше ' + MAX_AWAY_ONE + ' с). Вчитель побачить, на яких питаннях це сталося.';
     $('warn-overlay').classList.remove('hidden');
+    saveState();
   }
   function onReturn() {
-    if (PREVIEW || !isTestStarted || isSubmitted || awayStart === null || document.hidden) return;
+    if (PREVIEW || !isTestStarted || isSubmitted || awayStart === null || document.hidden || fsLost()) return;
     const secs = Math.round((Date.now() - awayStart) / 1000);
     awayStart = null;
-    const go = () => { if (!paused && !isSubmitted) evalAway(secs); };
-    getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(c => { applyCtrl(c); go(); }).catch(go);
+    if (secs > MAX_AWAY_ONE || awayTotal + secs > MAX_AWAY_TOTAL) {
+      // перед покаранням перевіряємо, чи вчитель не поставив паузу (тривога)
+      const go = () => { if (!paused && !isSubmitted) evalAway(secs); };
+      getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(c => { applyCtrl(c); go(); }).catch(go);
+    } else {
+      evalAway(secs);                                              // попередження одразу, без очікування сервера
+      getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(applyCtrl).catch(() => {});
+    }
   }
   setInterval(() => {
     if (PREVIEW || !isTestStarted || isSubmitted || paused || awayStart === null || checkingAway) return;
@@ -409,7 +430,7 @@
       checkingAway = true;
       getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(applyCtrl).catch(() => {}).then(() => {
         checkingAway = false;
-        if (!paused && !isSubmitted && awayStart !== null) { awayTotal += Math.round(cur); awayStart = null; finishTest(true); }
+        if (!paused && !isSubmitted && awayStart !== null) { awayTotal += Math.round(cur); awayStart = null; if (curLeave) curLeave.d = Math.round(cur); finishTest(true); }
       });
     }
   }, 1000);
@@ -417,9 +438,35 @@
   window.addEventListener('blur', () => {
     // клік по відео YouTube (iframe) — це не вихід зі сторінки
     if (document.activeElement && document.activeElement.tagName === 'IFRAME') return;
-    if (TOUCH) { if (isTestStarted && !isSubmitted) blurIgnored++; } else onLeave('blur');
+    if (COARSE) { if (isTestStarted && !isSubmitted) blurIgnored++; } else onLeave('blur');
   });
   window.addEventListener('focus', onReturn);
+  // Страховка: деякі способи піти зі сторінки (бічна панель Lens, інше вікно) не дають події — тому опитуємо стан кожні 300 мс.
+  let splitCnt = 0;
+  setInterval(() => {
+    if (PREVIEW || !isTestStarted || isSubmitted || paused || document.hidden) return;
+    const ifr = document.activeElement && document.activeElement.tagName === 'IFRAME';
+    if (!COARSE) {
+      const f = document.hasFocus() || ifr;
+      if (!f && awayStart === null) onLeave('blur');
+      else if (f && awayStart !== null) onReturn();
+    } else {
+      const typing = /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || '');
+      const split = innerWidth / screen.width < 0.7 || (!typing && innerHeight / screen.height < 0.5);   // розділений екран / плаваюче вікно
+      splitCnt = split ? splitCnt + 1 : 0;
+      if (splitCnt >= 2 && awayStart === null) onLeave('split');
+      else if (!split && awayStart !== null && curLeave && curLeave.k === 'split') onReturn();
+    }
+  }, 300);
+  // Повний екран (лише комп'ютер): вихід з нього — це вихід зі сторінки
+  function wantFs() { return !COARSE && !PREVIEW && !(TEST && TEST.fs === false) && document.documentElement.requestFullscreen; }
+  function enterFs() { try { if (wantFs()) { const r = document.documentElement.requestFullscreen(); if (r && r.catch) r.catch(() => {}); } } catch (e) {} }
+  document.addEventListener('fullscreenchange', () => {
+    if (!isTestStarted || isSubmitted || PREVIEW) return;
+    if (document.fullscreenElement) { fsOn = true; $('fs-overlay').classList.add('hidden'); onReturn(); }
+    else if (fsOn) { onLeave('fs'); $('fs-overlay').classList.remove('hidden'); }
+  });
+  $('fs-btn').addEventListener('click', enterFs);
   window.addEventListener('pagehide', () => { if (isTestStarted && !isSubmitted) { saveState(); sendPartial(true); } });
   $('warn-btn').addEventListener('click', () => $('warn-overlay').classList.add('hidden'));
 
@@ -431,7 +478,8 @@
     questions = buildVariant(TEST);
     if (!questions.length) { alert('У цій роботі ще немає питань.'); resetStartBtn(); return; }
     MAX_AUTO = questions.reduce((s, q) => s + q.points, 0);
-    isTestStarted = true;
+    isTestStarted = true; fsOn = !!document.fullscreenElement && wantFs();
+    if (document.fullscreenElement && !wantFs()) { try { document.exitFullscreen(); } catch (e) {} }
     $('start-screen').classList.add('hidden'); $('quiz-screen').classList.remove('hidden');
     loadQuestion();
   }
@@ -440,7 +488,7 @@
     const btn = $('start-btn');
     if (!className || !studentName) { alert('Оберіть свій клас та прізвище зі списку!'); return; }
     starting = true; btn.disabled = true; btn.textContent = 'Завантаження...';
-    clearClipboard();
+    clearClipboard(); enterFs();
     if (PREVIEW) { myRound = 1; myStop = 0; begin(TEST); return; }
     sendDataToScript({ action: 'start', className, studentName }).then(r => r.text()).then(status => {
       if (status === 'ALREADY_STARTED') { alert('Увага! Цей учень уже розпочинав або склав цю роботу. Зверніться до вчителя.'); resetStartBtn(); }
@@ -461,7 +509,7 @@
   function loadQuestion() {
     clearInterval(timerInterval);
     const q = questions[currentQ];
-    timeLeft = (resumeLeft !== null ? resumeLeft : q.time); resumeLeft = null;
+    timeLeft = (resumeLeft !== null ? resumeLeft : q.time); resumeLeft = null; qStartTs = Date.now();
     $('timer').textContent = timeLeft;
     $('progress').textContent = 'Питання ' + (currentQ + 1) + ' з ' + questions.length;
     $('bar').style.width = (currentQ / questions.length * 100) + '%';
@@ -543,6 +591,7 @@
   function saveCurrentAnswer() {
     const q = questions[currentQ];
     if (!q || q.saved) return;
+    qTime[q.slot] = (qTime[q.slot] || 0) + Math.max(0, Math.round((Date.now() - qStartTs) / 1000));
     const box = $('question-container');
     let shown = '', earned = 0;
     if (q.type === 'mcq') {
@@ -614,7 +663,7 @@
       testScore: String(Math.round(testScore * 100) / 100), answers: JSON.stringify(answers),
       isInterrupted: interrupted ? 'true' : 'false', byTeacher: byTeacher ? 'true' : 'false',
       round: String(myRound || ''), leaves: String(leaves), pastes: String(pasteAttempts),
-      awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr()
+      awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr(), leaveLog: leaveLogStr(), qTime: qTimeStr()
     });
   }
   function sendPartial(unloading) {
@@ -625,7 +674,7 @@
     sendDataToScript({
       action: 'submit', className, studentName, partial: 'true', round: String(myRound || ''),
       testScore: String(Math.round(testScore * 100) / 100), answers: JSON.stringify(answers),
-      isInterrupted: 'true', leaves: String(leaves), pastes: String(pasteAttempts), awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr()
+      isInterrupted: 'true', leaves: String(leaves), pastes: String(pasteAttempts), awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr(), leaveLog: leaveLogStr(), qTime: qTimeStr()
     });
   }
   function finishTest(forced, byTeacher) {
