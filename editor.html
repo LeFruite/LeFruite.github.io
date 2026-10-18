@@ -325,7 +325,7 @@
   }
 
   function newTest() {
-    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 30, awayTotal: 90, groups: [], sections: [] };
+    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 5, awayTotal: 15, fs: true, groups: [], sections: [] };
     S.dirty = true; showEdit();
   }
   async function openTest(id, then) {
@@ -453,7 +453,8 @@
       '<div><label class="f">Предмет</label><input type="text" list="subj" data-p="subject" data-k="s" value="' + esc(t.subject || '') + '"><datalist id="subj"><option value="Біологія"><option value="Географія"></datalist></div>' +
       '<div style="grid-column:1/-1"><label class="f">Тема (показується учням)</label>' + inp('topic', t.topic, { ph: 'Нервова система. Спинний мозок. Рефлекс' }) + '</div>' +
       '<div><label class="f">Найдовший дозволений вихід зі сторінки, с</label>' + inp('awayOne', t.awayOne, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Усього поза сторінкою за роботу, с</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div></div>' +
+      '<div><label class="f">Усього поза сторінкою за роботу, с</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Повний екран на комп\'ютері</label><select data-p="fs" data-k="bool"><option value="true"' + (t.fs !== false ? ' selected' : '') + '>Вимагати</option><option value="false"' + (t.fs === false ? ' selected' : '') + '>Не вимагати</option></select></div></div>' +
       (t.sheetName ? '<p class="help">Результати пишуться в аркуш Google Таблиці: «' + esc(t.sheetName) + '».</p>' : '<p class="help">Аркуш результатів створиться автоматично після першого збереження.</p>') + '</div>' +
       (t.sections.length ? t.sections.map((s, i) => secHtml(s, i, t)).join('') : '<div class="panel"><div class="empty">Додайте перший блок питань.</div></div>') +
       '<div class="panel"><h2>Додати блок питань</h2><div class="grid"><select id="newtype">' + Object.keys(TYPES).map(k => '<option value="' + k + '">' + esc(TYPES[k].name) + '</option>').join('') + '</select>' +
@@ -646,6 +647,10 @@
     if (m) return { pid: m[1], open: true, qtext: m[2], shown: m[3] };
     return { pid: '', shown: String(str) };
   }
+  const LK = { hidden: 'інша вкладка / згорнуто', blur: 'втрата фокуса', focus: 'втрата фокуса', fs: 'вихід з повного екрана', split: 'розділений екран', resume: 'повторне відкриття сторінки' };
+  function leaveList(row) { return String(row.leaveLog || '').split(';').filter(Boolean).map(x => { const a = x.split('|'); return { s: a[0], k: a[1], d: +a[2] || 0 }; }); }
+  function qTimes(row) { const o = {}; String(row.qTime || '').split(';').filter(Boolean).forEach(x => { const a = x.split(':'); o[a[0]] = +a[1] || 0; }); return o; }
+  const leaveTxt = e => (LK[e.k] || e.k) + (e.k === 'resume' ? '' : ', ' + (e.d < 1 ? '<1' : e.d) + ' с');
   function answerCard(slot, raw, row, idx) {
     const a = parseAns(raw), n = slot.replace('q', '');
     let cls = '', title = '', body = '', good = '', max = null;
@@ -675,7 +680,9 @@
     }
     let pts = '';
     if (a.earned != null) { pts = '<span class="pts">' + a.earned + (max != null ? ' / ' + max : '') + '</span>'; cls = max != null && a.earned >= max - 0.001 ? 'full' : (a.earned > 0 ? 'part' : 'zero'); }
-    return '<div class="ans ' + cls + '">' + pts + '<div class="qt">' + n + '. ' + esc(title) + '</div>' + body + (good ? '<div class="ok-line">' + esc(good) + '</div>' : '') + '</div>';
+    const lv = leaveList(row).filter(e => e.s === slot), tm = qTimes(row)[slot];
+    const flags = (tm != null ? '<span class="muted" style="font-size:13px">⏱ ' + tm + ' с</span>' : '') + (lv.length ? '<div style="color:#b42318;font-size:13.5px;font-weight:600;margin-top:4px">⚠ Виходів на цьому питанні: ' + lv.length + ' — ' + lv.map(e => esc(leaveTxt(e))).join('; ') + '</div>' : '');
+    return '<div class="ans ' + cls + '" style="' + (lv.length ? 'box-shadow:inset 4px 0 0 #b42318' : '') + '">' + pts + '<div class="qt">' + n + '. ' + esc(title) + '</div>' + flags + body + (good ? '<div class="ok-line">' + esc(good) + '</div>' : '') + '</div>';
   }
   function drawDetail() {
     const rows = filtered(), r = rows[S.rd], host = $('#rd');
@@ -686,7 +693,7 @@
     host.className = 'rd-back';
     host.innerHTML = '<div class="rd-panel"><div class="rd-h"><div class="ttl">' + esc(r.name) + '<div class="muted" style="font-size:14px;font-weight:500">' + esc(r.cls) + ' · ' + esc(r.status) + ' · ' + esc(r.time) + '</div></div>' +
       '<button class="icon" data-act="rd-prev" title="Попередній">←</button><button class="icon" data-act="rd-next" title="Наступний">→</button><button class="icon x" data-act="rd-close" title="Закрити">✕</button></div>' +
-      '<div class="muted" style="font-size:14px">Автобал: <b>' + esc(r.auto) + '</b> · відкриті (авто): <b>' + esc(r.open) + '</b> · разом: <b>' + esc(r.total) + (S.res.max ? ' з ' + S.res.max : '') + '</b> · виходів: ' + esc(r.leaves) + ' (' + esc(r.away || 0) + ' с) · спроб вставки: ' + esc(r.pastes || 0) + '</div>' +
+      '<div class="muted" style="font-size:14px">Автобал: <b>' + esc(r.auto) + '</b> · відкриті (авто): <b>' + esc(r.open) + '</b> · разом: <b>' + esc(r.total) + (S.res.max ? ' з ' + S.res.max : '') + '</b> · виходів: ' + esc(r.leaves) + ' (' + esc(r.away || 0) + ' с) · спроб вставки: ' + esc(r.pastes || 0) + '</div>' + (function () { const L = leaveList(r).filter(e => e.k !== 'resume'), out = L.filter(e => !e.s); return L.length ? '<div style="color:#b42318;font-size:13.5px;margin-top:6px">⚠ Виходи за питаннями: ' + L.filter(e => e.s).map(e => esc(e.s.slice(1)) + ' (' + esc(leaveTxt(e)) + ')').join('; ') + (out.length ? (L.length > out.length ? '; ' : '') + 'поза питаннями: ' + out.length : '') + '</div>' : ''; })() +
       '<div class="gradebox"><div><label class="f">Фінальна оцінка (1–12)</label><input type="number" id="rd-grade" min="1" max="12" step="1" value="' + esc(cur) + '"></div>' +
       '<div class="muted" style="font-size:13px;flex:1 1 140px">Автоматична оцінка: <b>' + (ag !== '' ? ag : '—') + '</b>' + (r.final !== '' ? '<br>Ваша оцінка: <b>' + esc(r.final) + '</b>' : '') + '</div>' +
       '<button class="btn" data-act="rd-save">Зберегти оцінку</button><button class="btn ghost" data-act="rd-reset"' + (r.final === '' ? ' disabled' : '') + '>Повернути автоматичну</button>' +
