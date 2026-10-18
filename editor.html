@@ -145,6 +145,26 @@
   .counters { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 10px; }
   .counters div b { font-size: 24px; display: block; line-height: 1.1; }
 
+  /* результати */
+  .rd-back { position: fixed; inset: 0; background: rgba(18,32,42,.55); z-index: 40; overflow: auto; padding: 24px 12px; }
+  .rd-panel { background: #fff; max-width: 820px; margin: 0 auto; border-radius: 14px; padding: 18px; }
+  .rd-h { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 8px; }
+  .rd-h .ttl { flex: 1 1 260px; font-size: 18px; font-weight: 800; }
+  .gradebox { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; background: var(--primary-soft); border-radius: 10px; padding: 12px; margin: 10px 0 14px; }
+  .gradebox input[type=number] { width: 90px; font-size: 20px; font-weight: 800; text-align: center; }
+  .ans { border: 1.5px solid var(--line-soft); border-left: 5px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .ans.full { border-left-color: var(--ok); } .ans.part { border-left-color: var(--mark); } .ans.zero { border-left-color: var(--warn); } .ans.open { border-left-color: var(--primary); }
+  .ans .qt { font-weight: 600; margin-bottom: 4px; }
+  .ans .st-ans { white-space: pre-wrap; background: #f6f8f8; border-radius: 8px; padding: 8px 10px; }
+  .ans .ok-line { font-size: 13px; color: var(--ok); margin-top: 4px; }
+  .ans .note { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .ans .pts { float: right; font-weight: 800; font-size: 14px; }
+  .tfrow { display: flex; gap: 8px; font-size: 14px; padding: 2px 0; } .tfrow b.ok { color: var(--ok); } .tfrow b.no { color: var(--warn); }
+  .gtag { display: inline-block; min-width: 28px; text-align: center; font-weight: 800; border-radius: 6px; padding: 1px 7px; }
+  .gtag.t { background: var(--primary); color: #fff; } .gtag.a { background: #eceff0; color: var(--muted); }
+  table.mon tr.clk { cursor: pointer; } table.mon tr.clk:hover td { background: var(--primary-soft); }
+  .filters { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 14px; }
+  .filters > div { min-width: 120px; }
   #toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; z-index: 50; max-width: 90vw; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
   #toast.bad { background: var(--warn); }
 </style>
@@ -175,7 +195,7 @@
   };
   const STATE_TXT = { open: 'Відкрито', paused: 'Пауза', closed: 'Закрито' };
 
-  const S = { pin: '', tests: [], cur: null, dirty: false, view: '', roster: null, mon: null, pickTarget: null };
+  const S = { prevWins: [], pin: '', tests: [], cur: null, dirty: false, view: '', roster: null, mon: null, pickTarget: null };
   let monTimer = null;
 
   /* ---------- допоміжне ---------- */
@@ -297,6 +317,7 @@
         '<div>' + (t.groups.length ? t.groups.map(g => '<span class="chip">' + esc(g) + '</span>').join('') : '<span class="chip off">групи не призначено</span>') + '</div>' +
         '<div class="muted" style="font-size:13px;margin-top:2px">Макс. ' + t.max + ' б. · <span class="state ' + st + '">' + STATE_TXT[st] + '</span>' + (t.ctrl.round > 1 ? ' · спроба №' + t.ctrl.round : '') + '</div></div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" data-act="edit" data-id="' + esc(t.id) + '">Редагувати</button>' +
+        '<button class="btn ghost sm" data-act="res" data-id="' + esc(t.id) + '">Результати</button>' +
         '<button class="btn sm" data-act="dist" data-id="' + esc(t.id) + '">Видача</button>' +
         '<button class="btn ghost sm" data-act="dup" data-id="' + esc(t.id) + '">Копія</button>' +
         '<button class="btn ghost sm" data-act="del" data-id="' + esc(t.id) + '">Видалити</button></div></div>';
@@ -523,7 +544,7 @@
   async function showDist() {
     stopMon(); S.view = 'dist';
     const t = S.cur;
-    app.innerHTML = topbar('<span class="crumb">' + esc(t.title) + '</span><button class="btn ghost" data-act="edit-cur">← Редагувати</button><button class="btn ghost" data-act="back">До списку</button>') +
+    app.innerHTML = topbar('<span class="crumb">' + esc(t.title) + '</span><button class="btn ghost" data-act="edit-cur">← Редагувати</button><button class="btn ghost" data-act="res-cur">Результати</button><button class="btn ghost" data-act="back">До списку</button>') +
       '<div class="wrap"><h1>Видача: ' + esc(t.title) + '</h1>' +
       '<div class="panel"><h2>Кому видати</h2><div class="chips" id="gchips"><span class="muted">Завантаження груп…</span></div>' +
       '<div style="margin-top:12px"><button class="btn" id="savegr">Зберегти групи</button> <span class="muted" id="gr-note" style="font-size:13px"></span></div>' +
@@ -570,6 +591,122 @@
   }
   function stopMon() { if (monTimer) { clearInterval(monTimer); monTimer = null; } }
 
+
+  /* ---------- результати: відповіді, оцінка вчителя, журнал ---------- */
+  function autoGrade(r) {
+    if (r.total === '' || r.total == null || !S.res.max) return '';
+    return Math.max(1, Math.min(12, Math.round(12 * parseFloat(String(r.total).replace(',', '.')) / S.res.max)));
+  }
+  const isFin = st => /^(Завершено|Перервано)/.test(st);
+  function filtered() {
+    const f = S.rf;
+    return S.res.rows.filter(r => r.round === f.round && (!f.group || r.cls === f.group))
+      .sort((a, b) => String(a.cls).localeCompare(b.cls, 'uk', { numeric: true }) || a.name.localeCompare(b.name, 'uk'));
+  }
+  async function showResults(keep) {
+    stopMon(); S.view = 'res';
+    if (!keep) { S.rf = { round: null, group: '', overwrite: false }; S.rd = null; }
+    app.innerHTML = topbar('<button class="btn ghost" data-act="back">← Список</button><button class="btn ghost" data-act="dist-cur">Видача</button>') +
+      '<div class="wrap"><h1>Результати: ' + esc(S.cur.title) + '</h1><div class="panel" id="resbody"><div class="empty">Завантаження…</div></div></div><div id="rd" class="hidden"></div>';
+    await loadResults();
+    monTimer = setInterval(() => { if (S.view === 'res' && S.rd === null) loadResults(true); }, 15000);
+  }
+  async function loadResults(silent) {
+    try {
+      S.res = await api('t_results', { id: S.cur.id });
+      if (S.rf.round == null) S.rf.round = S.res.ctrl.round;
+      drawResults(); if (S.rd !== null) drawDetail();
+    } catch (e) { if (e.message !== 'pin' && !silent) toast(e.message, true); }
+  }
+  function drawResults() {
+    if (S.view !== 'res') return;
+    const rounds = Array.from(new Set(S.res.rows.map(r => r.round).concat([S.res.ctrl.round]))).sort((a, b) => a - b);
+    const groups = Array.from(new Set(S.res.rows.map(r => r.cls))).sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
+    const rows = filtered(), fin = rows.filter(r => isFin(r.status));
+    $('#resbody').innerHTML = '<div class="filters"><div><label class="f">Спроба</label><select id="f-round">' + rounds.map(x => '<option value="' + x + '"' + (x === S.rf.round ? ' selected' : '') + '>№' + x + '</option>').join('') + '</select></div>' +
+      '<div><label class="f">Група</label><select id="f-group"><option value="">Усі</option>' + groups.map(g => '<option' + (g === S.rf.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
+      '<button class="btn ghost" data-act="res-refresh">Оновити</button></div>' +
+      '<div class="gradebox" style="align-items:center"><div style="flex:1 1 260px"><b>Занести в журнал</b><div class="muted" style="font-size:13px">Оцінки потрапляють у журнал лише за цією кнопкою. Якщо ви виставили оцінку вручну — заноситься вона, інакше автоматична.</div></div>' +
+      '<label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-over"' + (S.rf.overwrite ? ' checked' : '') + '> перезаписати наявні</label>' +
+      '<button class="btn" data-act="res-journal-all"' + (fin.length ? '' : ' disabled') + '>Занести завершені (' + fin.length + ')</button></div>' +
+      (rows.length ? '<div style="overflow:auto"><table class="mon"><tr><th>Група</th><th>Учень</th><th>Статус</th><th>Бали</th><th>Оцінка авто</th><th>Оцінка вчителя</th></tr>' +
+        rows.map((r, i) => { const k = /^Завершено/.test(r.status) ? 'done' : (/^Перервано|^Вийшов/.test(r.status) ? 'bad' : 'prog'), ag = autoGrade(r);
+          return '<tr class="clk" data-act="rd-open" data-i="' + i + '"><td>' + esc(r.cls) + '</td><td>' + esc(r.name) + '</td><td><span class="st ' + k + '">' + esc(r.status) + '</span></td><td>' + esc(r.total) + (r.total !== '' ? ' / ' + S.res.max : '') + '</td><td>' + (ag !== '' ? '<span class="gtag a">' + ag + '</span>' : '—') + '</td><td>' + (r.final !== '' ? '<span class="gtag t">' + esc(r.final) + '</span>' : '—') + '</td></tr>'; }).join('') + '</table></div>'
+        : '<div class="empty">У цій спробі ще немає робіт.</div>');
+    $('#f-round').onchange = e => { S.rf.round = +e.target.value; drawResults(); };
+    $('#f-group').onchange = e => { S.rf.group = e.target.value; drawResults(); };
+    $('#f-over').onchange = e => { S.rf.overwrite = e.target.checked; };
+  }
+
+  function qIndex() { const m = {}; S.cur.sections.forEach(s => s.questions.forEach(q => { if (q.id) m[q.id] = { s, q }; })); return m; }
+  function parseAns(str) {
+    let m = String(str).match(/^\[([^\]|]+?)\s*\|\s*\+([\d.,]+)\]\s*([\s\S]*)$/);
+    if (m) return { pid: m[1].trim(), earned: parseFloat(m[2].replace(',', '.')), shown: m[3] };
+    m = String(str).match(/^\[([^\]]+)\]\s*Питання:\s*([\s\S]*?)\s*—\s*Відповідь:\s*([\s\S]*)$/);
+    if (m) return { pid: m[1], open: true, qtext: m[2], shown: m[3] };
+    return { pid: '', shown: String(str) };
+  }
+  function answerCard(slot, raw, row, idx) {
+    const a = parseAns(raw), n = slot.replace('q', '');
+    let cls = '', title = '', body = '', good = '', max = null;
+    if (a.open) {
+      const info = idx[a.pid]; title = a.qtext;
+      const line = (row.notes || '').split('\n').find(l => l.indexOf(slot + ' ') === 0);
+      body = '<div class="st-ans">' + (esc(a.shown) || '<span class="muted">(порожньо)</span>') + '</div>' + (line ? '<div class="note">Автоперевірка: ' + esc(line.replace(slot + ' ', '')) + '</div>' : '');
+      cls = 'open';
+      if (info && info.q.concepts) good = 'Очікувані поняття: ' + info.q.concepts.map(c => c.n).filter(Boolean).join('; ');
+    } else if (a.pid.indexOf('tf:') === 0) {
+      const ids = a.pid.slice(3).split(',').map(x => parseInt(x, 10)), sec = S.cur.sections.find(s => s.type === 'tf' && ids.every(i => i <= s.questions.length));
+      title = 'Так / Ні'; max = sec ? +sec.points : null;
+      const got = {}; String(a.shown).replace(/(\d+)\)(Так|Ні|—)/g, (_, i, v) => { got[i] = v; return ''; });
+      body = ids.map((id, k) => { const st = sec && sec.questions[id - 1]; if (!st) return ''; const v = got[k + 1] || '—', right = st.c ? 'Так' : 'Ні';
+        return '<div class="tfrow"><b class="' + (v === right ? 'ok' : 'no') + '">' + (v === right ? '✓' : '✗') + '</b><span style="flex:1">' + esc(st.t) + '</span><span>' + esc(v) + (v !== right ? ' (треба: ' + right + ')' : '') + '</span></div>'; }).join('');
+    } else {
+      const info = idx[a.pid], q = info && info.q, sec = info && info.s;
+      title = q ? q.text : '(питання не знайдено в тесті — можливо, його змінили)'; max = sec ? +sec.points : null;
+      body = '<div class="st-ans">' + (esc(a.shown) || '<span class="muted">(порожньо)</span>') + '</div>';
+      if (q && sec) {
+        if (sec.type === 'mcq') good = 'Правильно: ' + q.o[0];
+        else if (sec.type === 'multi') good = 'Правильно: ' + q.o.filter((_, i) => (q.c || []).includes(i)).join('; ');
+        else if (sec.type === 'short') good = 'Прийнятні: ' + (q.acc || []).join(', ');
+        else if (sec.type === 'match') good = 'Правильно: ' + q.pairs.map(p => p[0] + ' → ' + p[1]).join('; ');
+        else if (sec.type === 'label') good = 'Правильно: ' + q.marks.map((m, i) => (i + 1) + ') ' + m.a).join('; ');
+      }
+    }
+    let pts = '';
+    if (a.earned != null) { pts = '<span class="pts">' + a.earned + (max != null ? ' / ' + max : '') + '</span>'; cls = max != null && a.earned >= max - 0.001 ? 'full' : (a.earned > 0 ? 'part' : 'zero'); }
+    return '<div class="ans ' + cls + '">' + pts + '<div class="qt">' + n + '. ' + esc(title) + '</div>' + body + (good ? '<div class="ok-line">' + esc(good) + '</div>' : '') + '</div>';
+  }
+  function drawDetail() {
+    const rows = filtered(), r = rows[S.rd], host = $('#rd');
+    if (!r) { host.className = 'hidden'; S.rd = null; return; }
+    const idx = qIndex(), ag = autoGrade(r), cur = r.final !== '' ? r.final : ag;
+    const slots = Object.keys(r.answers).sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10));
+    const keepScroll = host.scrollTop;
+    host.className = 'rd-back';
+    host.innerHTML = '<div class="rd-panel"><div class="rd-h"><div class="ttl">' + esc(r.name) + '<div class="muted" style="font-size:14px;font-weight:500">' + esc(r.cls) + ' · ' + esc(r.status) + ' · ' + esc(r.time) + '</div></div>' +
+      '<button class="icon" data-act="rd-prev" title="Попередній">←</button><button class="icon" data-act="rd-next" title="Наступний">→</button><button class="icon x" data-act="rd-close" title="Закрити">✕</button></div>' +
+      '<div class="muted" style="font-size:14px">Автобал: <b>' + esc(r.auto) + '</b> · відкриті (авто): <b>' + esc(r.open) + '</b> · разом: <b>' + esc(r.total) + (S.res.max ? ' з ' + S.res.max : '') + '</b> · виходів: ' + esc(r.leaves) + ' (' + esc(r.away || 0) + ' с) · спроб вставки: ' + esc(r.pastes || 0) + '</div>' +
+      '<div class="gradebox"><div><label class="f">Фінальна оцінка (1–12)</label><input type="number" id="rd-grade" min="1" max="12" step="1" value="' + esc(cur) + '"></div>' +
+      '<div class="muted" style="font-size:13px;flex:1 1 140px">Автоматична оцінка: <b>' + (ag !== '' ? ag : '—') + '</b>' + (r.final !== '' ? '<br>Ваша оцінка: <b>' + esc(r.final) + '</b>' : '') + '</div>' +
+      '<button class="btn" data-act="rd-save">Зберегти оцінку</button><button class="btn ghost" data-act="rd-reset"' + (r.final === '' ? ' disabled' : '') + '>Повернути автоматичну</button>' +
+      '<button class="btn ok" data-act="rd-journal">Занести в журнал</button></div>' +
+      (slots.length ? slots.map(sl => answerCard(sl, r.answers[sl], r, idx)).join('') : '<div class="empty">Відповідей ще немає.</div>') + '</div>';
+    host.scrollTop = keepScroll;
+  }
+  async function saveGrade(r, val) {
+    try {
+      await api('t_grade', { id: S.cur.id, cls: r.cls, name: r.name, round: r.round, grade: val });
+      r.final = val === '' ? '' : Math.round(+val); drawResults(); drawDetail(); toast(val === '' ? 'Повернуто автоматичну оцінку' : 'Оцінку збережено'); return true;
+    } catch (e) { if (e.message !== 'pin') toast('Не вдалося зберегти: ' + e.message, true); return false; }
+  }
+  async function pushJournal(list, overwrite) {
+    try {
+      const r = await api('t_journal', { id: S.cur.id, overwrite: overwrite ? 'true' : 'false', only: JSON.stringify(list.map(x => ({ cls: x.cls, name: x.name, round: x.round }))) });
+      toast('Журнал: занесено ' + r.done + (r.kept ? ', уже були ' + r.kept : '') + (r.bad.length ? ', не вдалося: ' + r.bad.join(', ') : ''), r.bad.length > 0);
+    } catch (e) { if (e.message !== 'pin') toast('Не вдалося занести: ' + e.message, true); }
+  }
+
   /* ---------- дії ---------- */
   function move(arr, i, d) { const j = i + d; if (j < 0 || j >= arr.length) return false; [arr[i], arr[j]] = [arr[j], arr[i]]; return true; }
   function needSave(fn) { return async () => { if (S.dirty && !(await saveCur())) return; fn(); }; }
@@ -581,6 +718,30 @@
       /* список */
       case 'edit': return openTest(b.dataset.id, showEdit);
       case 'dist': return openTest(b.dataset.id, showDist);
+      case 'res': return openTest(b.dataset.id, () => showResults(false));
+      case 'res-cur': return showResults(false);
+      case 'res-refresh': return loadResults();
+      case 'rd-open': S.rd = i; return drawDetail();
+      case 'rd-close': S.rd = null; $('#rd').className = 'hidden'; return;
+      case 'rd-prev': case 'rd-next': { const n = filtered().length; S.rd = Math.max(0, Math.min(n - 1, S.rd + (a === 'rd-next' ? 1 : -1))); return drawDetail(); }
+      case 'rd-save': {
+        const g = Math.round(parseFloat($('#rd-grade').value));
+        if (!(g >= 1 && g <= 12)) return toast('Оцінка має бути від 1 до 12', true);
+        return void (await saveGrade(filtered()[S.rd], g));
+      }
+      case 'rd-reset': return void (await saveGrade(filtered()[S.rd], ''));
+      case 'rd-journal': {
+        const r = filtered()[S.rd], v = Math.round(parseFloat($('#rd-grade').value));
+        if (!(v >= 1 && v <= 12)) return toast('Оцінка має бути від 1 до 12', true);
+        const eff = r.final !== '' ? Number(r.final) : autoGrade(r);
+        if (eff !== v && !(await saveGrade(r, v))) return;
+        return void (await pushJournal([r], true));
+      }
+      case 'res-journal-all': {
+        const fin = filtered().filter(r => isFin(r.status));
+        if (!confirm('Занести в журнал оцінки ' + fin.length + ' учн. ' + (S.rf.overwrite ? '(наявні оцінки буде перезаписано)?' : '(наявні оцінки не чіпатимуться)?'))) return;
+        return void (await pushJournal(fin, S.rf.overwrite));
+      }
       case 'dup': return openTest(b.dataset.id, async () => {
         t.id = newTestId(); t.title += ' (копія)'; delete t.sheetName; t.groups = [];
         S.cur = t; if (await saveCur()) showList();
@@ -601,8 +762,9 @@
         const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = (t.id || 'test') + '.json'; l.click(); return;
       }
       case 'preview':
-        try { localStorage.setItem('preview_' + t.id, JSON.stringify(t)); } catch (er) { return toast('Браузер не дозволяє зберегти чернетку для перегляду', true); }
-        window.open('index.html?preview=' + encodeURIComponent(t.id), '_blank'); return;
+        try { localStorage.setItem('preview_' + t.id, JSON.stringify(t)); } catch (er) { /* не страшно: дані підуть повідомленням */ }
+        { const w = window.open('index.html?preview=' + encodeURIComponent(t.id), '_blank'); if (w) S.prevWins.push(w); else toast('Браузер заблокував нову вкладку — дозвольте спливні вікна для цієї сторінки', true); }
+        return;
       /* структура */
       case 'add-s': { const type = $('#newtype').value; t.sections.push(Object.assign({ type, questions: [newQ(type)] }, JSON.parse(JSON.stringify(TYPES[type].def)))); break; }
       case 'del-s': if (!confirm('Видалити блок разом із усіма його питаннями?')) return; t.sections.splice(si, 1); break;
@@ -672,6 +834,12 @@
     const el = e.target; if (!el.dataset || !el.dataset.p || !S.cur) return;
     if (el.dataset.r) { applyField(el); markDirty(); showEdit(); }
     else if (el.dataset.k === 'bool' || el.dataset.k === 'mc') { applyField(el); markDirty(); refreshSum(); }
+  });
+
+  // пробний запуск просить поточну чернетку в редактора (працює навіть коли localStorage не спільний між вкладками)
+  window.addEventListener('message', e => {
+    if (e.data !== 'preview-request' || !S.cur || !S.prevWins.includes(e.source)) return;
+    e.source.postMessage({ type: 'preview-data', test: S.cur }, '*');
   });
 
   /* ---------- імпорт ---------- */
