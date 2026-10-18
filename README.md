@@ -10,7 +10,7 @@
 [![JS Vanilla](https://img.shields.io/badge/Code-Vanilla%20JS-yellow?style=for-the-badge&logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![Backend](https://img.shields.io/badge/Backend-Google%20Apps%20Script-green?style=for-the-badge&logo=google)](https://script.google.com/)
 
-[**Спробувати Демо (Учень)**](lefruite.github.io/index.html) • [**Кабінет Вчителя**](lefruite.github.io/editor.html) • [**Інструкція**](#швидкий-старт-за-5-хвилин)
+[**Спробувати Демо (Учень)**](/index.html) • [**Кабінет Вчителя**](/editor.html) • [**Інструкція**](#швидкий-старт-за-5-хвилин)
 
 </div>
 
