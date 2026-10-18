@@ -241,16 +241,30 @@
     $('wait-msg').classList.add('hidden'); $('form-container').classList.add('hidden');
     const f = $('fatal'); f.textContent = msg; f.classList.remove('hidden');
   }
+  function startPreview(t) {
+    if (TEST) return;
+    $('preview-badge').classList.remove('hidden'); document.body.style.paddingTop = '40px';
+    TEST = t;
+    INFO = { title: t.title, subject: t.subject, topic: t.topic, groups: { 'Пробний запуск': ['Вчитель (пробний)'] }, awayOne: 9999, awayTotal: 9999, ctrl: { state: 'open', round: 1, stopSeq: 0 } };
+    applyInfo(); applyCtrl(INFO.ctrl);
+  }
   function init() {
     if (!TEST_ID) { fatal('Відкрийте посилання на роботу, яке дав вчитель.'); return; }
     if (PREVIEW) {
       let t = null;
       try { t = JSON.parse(localStorage.getItem('preview_' + PREVIEW) || 'null'); } catch (e) {}
-      if (!t) { fatal('Немає даних для пробного запуску. Відкрийте його з редактора.'); return; }
-      $('preview-badge').classList.remove('hidden'); document.body.style.paddingTop = '40px';
-      TEST = t;
-      INFO = { title: t.title, subject: t.subject, topic: t.topic, groups: { 'Пробний запуск': ['Вчитель (пробний)'] }, awayOne: 9999, awayTotal: 9999, ctrl: { state: 'open', round: 1, stopSeq: 0 } };
-      applyInfo(); applyCtrl(INFO.ctrl); return;
+      if (t) { startPreview(t); return; }
+      // localStorage може не збігатися між вкладками (наприклад, файли відкрито з диска) — просимо дані в редактора
+      const ask = () => { try { if (window.opener) window.opener.postMessage('preview-request', '*'); } catch (e) {} };
+      window.addEventListener('message', e => {
+        if (TEST || !e.data || e.data.type !== 'preview-data' || !e.data.test) return;
+        if (window.opener && e.source !== window.opener) return;
+        startPreview(e.data.test);
+      });
+      $('wait-msg').textContent = 'Завантажую пробну роботу з редактора…';
+      ask(); setTimeout(ask, 500);
+      setTimeout(() => { if (!TEST) fatal('Немає даних для пробного запуску. Закрийте цю вкладку й натисніть «Пробний запуск» у редакторі ще раз (редактор має лишатися відкритим).'); }, 4000);
+      return;
     }
     if (!SCRIPT_URL) { fatal('Не задано адресу сервера (файл config.js).'); return; }
     loadInfo();
