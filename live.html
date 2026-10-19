@@ -6,38 +6,46 @@
 <meta name="color-scheme" content="light">
 <title>Живий урок</title>
 <script src="config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@700;800&family=Roboto+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#eef1f4; --card:#fff; --ink:#14212b; --muted:#5d6b76; --line:#d6dde3; --accent:#1b4fd8; --accent-dark:#153cab; --ok:#15803d; --ok-soft:#e1f3e8; --bad:#b42318; --bad-soft:#fdeceb; --info-soft:#e6edfc; }
+  :root { --paper:#f1f4f8; --ink:#1d2a44; --steel:#3a4a66; --muted:#5c6b82; --line:#c5cfdc; --blue:#2f5fb3; --blue-soft:#e4ecf8; --red:#b3342b; --red-soft:#fbe9e7; --ok:#2e7d4f; --ok-soft:#e3f2e9; --gold:#8a6a1f; --gold-soft:#f6edd5; }
   * { box-sizing:border-box; }
   html { -webkit-tap-highlight-color:transparent; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:18px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; min-height:100vh; display:flex; justify-content:center; padding:16px; }
-  .wrap { width:100%; max-width:760px; }
-  .card { background:var(--card); border-radius:20px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,.05),0 12px 32px rgba(20,33,43,.10); }
-  .top { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:14px; margin-bottom:14px; }
-  h1 { font-size:26px; line-height:1.2; margin:0 0 10px; }
-  .kick { font-size:14px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
-  .text { color:#2a3a46; margin:0 0 14px; }
-  .prompt { background:var(--info-soft); border-radius:14px; padding:14px 16px; font-weight:700; font-size:20px; margin:16px 0; }
-  select { width:100%; font:inherit; padding:13px; border:1.5px solid var(--line); border-radius:12px; background:#fff; margin:6px 0 14px; }
-  label.f { font-size:14px; color:var(--muted); font-weight:600; }
-  .btn { display:block; width:100%; border:0; border-radius:16px; padding:20px 18px; font:inherit; font-size:20px; font-weight:700; background:var(--accent); color:#fff; cursor:pointer; text-align:left; margin-top:12px; }
-  .btn:active { background:var(--accent-dark); }
+  body { margin:0; color:var(--ink); font:20px/1.45 "Roboto Condensed",system-ui,-apple-system,"Segoe UI",Arial,sans-serif; min-height:100vh; display:flex; justify-content:center; padding:18px;
+         background-color:var(--paper); background-image:linear-gradient(#dde4ed 1px,transparent 1px),linear-gradient(90deg,#dde4ed 1px,transparent 1px); background-size:26px 26px; }
+  .wrap { width:100%; max-width:780px; }
+  .card { background:#fff; border:2px solid var(--steel); border-radius:6px; padding:24px; box-shadow:7px 7px 0 rgba(58,74,102,.14); }
+  .top { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:16px; margin-bottom:12px; }
+  h1, .res h2 { font-family:"Noto Serif",Georgia,serif; font-weight:800; }
+  h1 { font-size:30px; line-height:1.2; margin:0 0 10px; }
+  .kick { font-size:15px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); margin-bottom:6px; }
+  .role { display:inline-block; font-weight:700; border-radius:999px; padding:5px 15px; font-size:16px; margin-bottom:12px; border:2px solid; }
+  .role.ark { background:var(--blue-soft); color:var(--blue); border-color:var(--blue); } .role.agg { background:var(--red-soft); color:var(--red); border-color:var(--red); }
+  .text { color:#33425c; margin:0 0 14px; }
+  .prompt { background:var(--gold-soft); border:2px solid #cdb36a; border-radius:6px; padding:14px 16px; font-weight:700; font-size:22px; line-height:1.3; margin:16px 0; color:#4a3a0e; }
+  .fig { margin:0 0 16px; border:2px solid var(--steel); border-radius:4px; overflow:hidden; background:#fff; }
+  .fig img { display:block; width:100%; max-height:46vh; object-fit:cover; object-position:center; }
+  .fig figcaption { font-size:15px; color:var(--muted); padding:8px 12px; border-top:2px solid var(--steel); background:var(--paper); }
+  select { width:100%; font:inherit; padding:13px; border:2px solid var(--line); border-radius:6px; background:#fff; margin:6px 0 14px; color:var(--ink); }
+  label.f { font-size:15px; color:var(--muted); font-weight:700; }
+  .btn { display:block; width:100%; border:2px solid var(--ink); border-radius:6px; padding:18px; font:inherit; font-size:21px; font-weight:700; background:var(--ink); color:#fff; cursor:pointer; text-align:left; margin-top:12px; }
+  .btn:active { background:#0f1829; }
   .btn.mid { text-align:center; }
   .btn[disabled] { opacity:.5; cursor:default; }
-  .opt { background:#fff; color:var(--ink); border:2.5px solid var(--line); }
-  .opt:active { background:var(--info-soft); }
-  .opt.sel { border-color:var(--accent); background:var(--info-soft); }
-  .opt.right { border-color:var(--ok); background:var(--ok-soft); }
-  .opt.wrong { border-color:var(--bad); background:var(--bad-soft); }
-  .done { margin-top:14px; padding:14px 16px; border-radius:14px; background:var(--ok-soft); color:#0f5d2c; font-weight:700; }
+  .opt { background:#fff; color:var(--ink); border-color:var(--line); }
+  .opt:active { background:var(--blue-soft); }
+  .opt.sel { border-color:var(--blue); background:var(--blue-soft); box-shadow:inset 6px 0 0 var(--blue); }
+  .opt.right { border-color:var(--ok); background:var(--ok-soft); } .opt.wrong { border-color:var(--red); background:var(--red-soft); }
+  .done { margin-top:14px; padding:12px 16px; border-radius:6px; background:var(--ok-soft); color:#1d5a37; font-weight:700; border:2px solid #a9d3b9; }
   .wait { margin-top:16px; color:var(--muted); text-align:center; }
-  .res { border-radius:18px; padding:22px; margin-top:16px; }
-  .res.good { background:var(--ok-soft); color:#0f5d2c; } .res.bad { background:var(--bad-soft); color:#8f1d12; } .res.info { background:var(--info-soft); }
-  .res h2 { margin:0 0 8px; font-size:30px; line-height:1.1; }
-  .res p { margin:0; font-size:18px; color:var(--ink); }
-  .net { position:fixed; left:12px; right:12px; bottom:12px; background:#14212b; color:#fff; border-radius:12px; padding:10px 14px; text-align:center; font-size:15px; }
+  .res { border-radius:6px; padding:20px; margin-top:16px; border:2px solid; }
+  .res.good { background:var(--ok-soft); color:#1d5a37; border-color:var(--ok); } .res.bad { background:var(--red-soft); color:#8f241c; border-color:var(--red); } .res.info { background:var(--blue-soft); color:var(--ink); border-color:var(--blue); }
+  .res h2 { margin:0 0 8px; font-size:30px; line-height:1.15; }
+  .res p { margin:0; font-size:20px; color:var(--ink); }
+  .net { position:fixed; left:12px; right:12px; bottom:12px; background:var(--ink); color:#fff; border-radius:6px; padding:10px 14px; text-align:center; font-size:16px; }
   .hidden { display:none !important; }
-  @media (max-width:520px) { body { padding:10px; } .card { padding:18px; } h1 { font-size:23px; } }
+  @media (max-width:520px) { body { padding:10px; font-size:19px; } .card { padding:16px; } h1 { font-size:26px; } }
 </style>
 </head>
 <body>
@@ -48,6 +56,15 @@
   const $ = id => document.getElementById(id), app = $('app');
   const ID = new URLSearchParams(location.search).get('s') || '';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let IMGS = {};
+  async function loadImgs(title) {
+    try {
+      const list = await (await fetch('live/index.json?r=' + Date.now())).json(), it = list.find(x => x.title === title); if (!it) return;
+      const sc = await (await fetch('live/' + it.file + '?r=' + Date.now())).json();
+      sc.screens.forEach(s => { if (s.img) IMGS[s.id] = { src: 'live/' + s.img, cap: s.imgCap || '' }; });
+    } catch (e) {}
+  }
+  const figure = id => IMGS[id] ? '<figure class="fig"><img src="' + esc(IMGS[id].src) + '" alt="' + esc(IMGS[id].cap) + '">' + (IMGS[id].cap ? '<figcaption>' + esc(IMGS[id].cap) + '</figcaption>' : '') + '</figure>' : '';
   const J = p => fetch(SCRIPT_URL + '?' + p + '&r=' + Date.now()).then(r => r.json());
   let who = null, last = '', fails = 0, timer = null, busy = false;
   const msg = (t, h) => { app.innerHTML = (h ? '<h1>' + esc(h) + '</h1>' : '') + '<div class="wait">' + esc(t) + '</div>'; };
@@ -56,6 +73,7 @@
     if (!ID) return msg('Відкрийте посилання, яке дав вчитель.', 'Живий урок');
     let info; try { info = await J('live_info=' + encodeURIComponent(ID)); } catch (e) { return msg('Немає зв\'язку із сервером. Оновіть сторінку.'); }
     if (info.error) return msg('Урок не знайдено або вже завершено. Попросіть вчителя нове посилання.');
+    await loadImgs(info.title);
     let saved = null; try { saved = JSON.parse(localStorage.getItem('live_who_' + ID) || 'null'); } catch (e) {}
     if (saved && info.groups[saved.cls] && info.groups[saved.cls].indexOf(saved.name) >= 0) { who = saved; return start(); }
     const gs = Object.keys(info.groups);
@@ -89,7 +107,7 @@
     let g = '';
     [0, .5, 1].forEach(f => { const y = Y(m.start * f); g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="' + mut + '" stroke-opacity=".25"/><text x="' + (L - 8) + '" y="' + (y + 4) + '" text-anchor="end" font-size="13" fill="' + mut + '">' + Math.round(m.start * f) + '</text>'; });
     const ty = Y(m.threshold);
-    g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + ty + '" y2="' + ty + '" stroke="#f2a900" stroke-width="2" stroke-dasharray="7 5"/><text x="' + (W - R) + '" y="' + (ty - 6) + '" text-anchor="end" font-size="13" fill="#f2a900">поріг відступу</text>';
+    g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + ty + '" y2="' + ty + '" stroke="#8a6a1f" stroke-width="2" stroke-dasharray="7 5"/><text x="' + (W - R) + '" y="' + (ty - 6) + '" text-anchor="end" font-size="13" fill="#8a6a1f">поріг відступу</text>';
     g += '<polygon points="' + X(0) + ',' + Y(0) + ' ' + pts + ' ' + X(last) + ',' + Y(0) + '" fill="' + line + '" fill-opacity=".14"/>';
     g += '<polyline points="' + pts + '" fill="none" stroke="' + line + '" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + X(last) + '" cy="' + Y(m.now) + '" r="7" fill="' + line + '"/>';
     return '<div style="margin:14px 0"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b>' + esc(m.label) + '</b><span style="font-size:32px;font-weight:800;color:' + line + '">' + Math.round(m.now) + ' <span style="font-size:15px;color:' + mut + '">' + esc(m.unit) + '</span></span></div>' +
@@ -98,15 +116,15 @@
   function render(s) {
     const sc = s.screen, role = s.role, rcol = role === 'ark' ? '#1b4fd8' : '#b42318', rbg = role === 'ark' ? '#e6edfc' : '#fdeceb';
     let h = '<div class="top"><span>' + esc(who.name) + ' · ' + esc(who.cls) + '</span><span>Крок ' + (s.step + 1) + ' з ' + s.total + '</span></div>';
-    h += '<div style="display:inline-block;background:' + rbg + ';color:' + rcol + ';font-weight:800;border-radius:999px;padding:6px 14px;font-size:15px;margin-bottom:12px">' + esc(s.roleInfo.title) + '</div>';
+    h += '<div class="role ' + role + '">' + esc(s.roleInfo.title) + '</div>';
     h += '<div class="kick">' + esc(sc.title || '') + '</div>';
     if (sc.kind === 'info') {
-      h += '<h1>' + esc(sc.title) + '</h1>' + (sc.text ? '<p class="text">' + esc(sc.text) + '</p>' : '');
+      h += figure(sc.id) + '<h1>' + esc(sc.title) + '</h1>' + (sc.text ? '<p class="text">' + esc(sc.text) + '</p>' : '');
       if (s.step === 0) h += '<div class="res info" style="margin:0 0 14px"><b>Ваша роль: ' + esc(s.roleInfo.title) + '.</b><p style="margin-top:6px">' + esc(s.roleInfo.text) + '</p></div>';
       if (sc.prompt) h += '<div class="prompt">' + esc(sc.prompt) + '</div>';
       h += '<div class="wait">Чекайте, поки вчитель продовжить.</div>';
     } else {
-      h += '<div class="prompt" style="margin-top:6px">' + esc(sc.prompt) + '</div>';
+      h += figure(sc.id) + '<div class="prompt" style="margin-top:6px">' + esc(sc.prompt) + '</div>';
       if (sc.hint) h += '<p class="text" style="margin-top:-6px">' + esc(sc.hint) + '</p>';
       if (sc.kind === 'press') {
         if (s.my !== null) h += '<div class="done">✓ Ваш голос враховано</div>';
