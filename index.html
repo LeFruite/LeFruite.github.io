@@ -21,6 +21,7 @@
   h2 { margin: 0 0 4px; font-size: 24px; line-height: 1.25; text-align: center; letter-spacing: -.01em; }
   .subject { text-align: center; color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
   .topic { text-align: center; color: var(--muted); margin: 0 0 14px; }
+  #save-status { font-weight:700; } #save-status.ok { color:#1d5a37; } #save-status.retry, #save-status.sending { color:#8a6a1f; } #save-status.fail { color:#b3342b; }
   .hidden { display: none !important; }
   .note { background: var(--accent-soft); color: #1b4a3a; padding: 12px 14px; border-radius: 10px; font-size: 14px; }
   .error-msg { color: var(--warn); font-weight: 600; margin: 12px 0; text-align: center; }
@@ -37,6 +38,29 @@
   .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .progress { color: var(--muted); font-size: 14px; font-weight: 600; }
   .timer-box { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--warn); background: var(--warn-soft); padding: 6px 12px; border-radius: 999px; font-size: 16px; }
+  .timer-box.total { color: var(--ink); background: var(--soft, #eef0ee); margin-left: auto; margin-right: 8px; font-weight: 700; }
+  .read-note { background: var(--accent-soft); border: 1.5px solid var(--accent); color: var(--accent-dark); border-radius: 12px; padding: 10px 14px; font-weight: 700; margin: 0 0 12px; }
+  .grade-box { margin: 16px auto; max-width: 460px; background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 16px; padding: 16px 18px; text-align: center; }
+  .grade-box b { display: block; font-size: 34px; line-height: 1.2; color: var(--accent-dark); }
+  .grade-box small { color: var(--muted); }
+  .rules { background: #faf9f5; border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 4px 0 8px; font-size: 14.5px; text-align: left; }
+  .rules h3 { margin: 0 0 8px; font-size: 16px; }
+  .rules table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13.5px; }
+  .rules th, .rules td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .rules th { color: var(--muted); font-weight: 700; font-size: 12px; }
+  .rules td.n, .rules th.n { text-align: right; white-space: nowrap; }
+  .rules ul { margin: 8px 0 0; padding-left: 20px; } .rules li { margin: 3px 0; }
+  .rules .formula { background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 10px; padding: 9px 12px; margin-top: 10px; color: var(--accent-dark); font-weight: 600; }
+  .rev-box { margin-top: 14px; } .rev-box summary { cursor: pointer; font-weight: 700; color: var(--accent-dark); }
+  .rv-item { border: 1.5px solid var(--line); border-left-width: 6px; border-radius: 12px; padding: 10px 12px; margin: 10px 0; text-align: left; background: #fff; }
+  .rv-item.full { border-left-color: var(--accent); } .rv-item.part { border-left-color: var(--amber); } .rv-item.zero { border-left-color: var(--warn); }
+  .rv-item .pts { float: right; font-weight: 800; margin-left: 10px; }
+  .rv-item .qt { font-weight: 700; margin-bottom: 6px; }
+  .rv-item .mine { background: #faf9f5; border-radius: 8px; padding: 6px 10px; white-space: pre-wrap; }
+  .rv-item .good { color: var(--accent-dark); font-weight: 600; margin-top: 6px; font-size: 14px; }
+  .rv-item .tcm { background: #fff6dd; border: 1.5px solid #f0d58a; border-radius: 8px; padding: 6px 10px; margin-top: 8px; font-size: 14px; }
+  .rv-item .tf { display: flex; gap: 8px; font-size: 14px; padding: 2px 0; } .rv-item .tf b.ok { color: var(--accent); } .rv-item .tf b.no { color: var(--warn); }
+  #next-btn:disabled { opacity: .45; cursor: not-allowed; }
   .timer-box.low { animation: pulse 1s infinite; }
   @keyframes pulse { 50% { opacity: .55; } }
   .bar { height: 6px; background: #ece9df; border-radius: 99px; overflow: hidden; margin-bottom: 16px; }
@@ -94,6 +118,8 @@
       <button id="resume-btn">Продовжити роботу</button>
     </div>
 
+    <div id="rules-box" class="rules hidden"></div>
+
     <div id="form-container" class="hidden">
       <label class="fld" for="class-select">Клас / група:</label>
       <select id="class-select"><option value="">— оберіть —</option></select>
@@ -102,13 +128,25 @@
       <p class="hint-small">Після початку не згортайте сторінку, не перемикайте вкладки й не виходьте — це фіксується. Роботу можна пройти лише один раз. На кожне питання відведено обмежений час.</p>
       <button id="start-btn" disabled>Розпочати</button>
     </div>
+    <details id="rev-box" class="rev-box hidden">
+      <summary>Уже склали? Переглянути результат і розбір</summary>
+      <label class="fld" for="rv-class">Клас / група:</label>
+      <select id="rv-class"><option value="">— оберіть —</option></select>
+      <label class="fld" for="rv-student">Прізвище та ім'я:</label>
+      <select id="rv-student" disabled><option value="">— спочатку оберіть клас —</option></select>
+      <button id="rv-btn" type="button">Показати мій розбір</button>
+    </details>
   </div>
+
+  <div id="review-screen" class="hidden"></div>
 
   <div id="quiz-screen" class="hidden">
     <div class="topbar">
       <div class="progress" id="progress"></div>
+      <div class="timer-box total" id="total-box" title="Загальний час на всю роботу">Загалом <span id="total">--:--</span></div>
       <div class="timer-box" id="timer-box"><span id="timer">--</span> с</div>
     </div>
+    <div id="read-note" class="read-note hidden" aria-live="polite"></div>
     <div class="bar"><i id="bar"></i></div>
     <div id="paste-warn" class="error-msg hidden">Вставка тексту заборонена. Відповідь потрібно вводити вручну.</div>
     <div id="question-container"></div>
@@ -117,7 +155,9 @@
 
   <div id="end-screen" class="hidden" style="text-align:center;">
     <h2>Роботу завершено</h2>
-    <p id="end-msg">Дякуємо! Ваші відповіді відправлені вчителю на перевірку.</p>
+    <p id="end-msg">Дякуємо! Роботу завершено.</p>
+    <div id="grade-box" class="grade-box hidden"></div>
+    <p id="save-status" aria-live="polite"></p>
     <div id="preview-result" class="hidden"></div>
   </div>
 </div>
@@ -227,6 +267,7 @@
   let isSubmitted = false, isTestStarted = false, leaves = 0;
   let awayStart = null, awayTotal = 0, paused = false, checkingAway = false, resumeLeft = null;
   let leaveLog = [], qTime = {}, qStartTs = 0, curLeave = null, fsOn = false;
+  let totalLeft = 0, totalTimer = null, lastTick = 0, reading = false, readLeft = 0;
   let myRound = null, myStop = null, starting = false;
 
   /* ---------- Сервер ---------- */
@@ -239,6 +280,110 @@
     if (PREVIEW) return Promise.resolve({ text: () => Promise.resolve('OK_PREVIEW') });
     return fetch(SCRIPT_URL, { method: 'POST', body: new URLSearchParams(params), keepalive: true });
   }
+  /* Остаточні відповіді не губляться: зберігаються на пристрої й надсилаються повторно, доки сервер не підтвердить */
+  const PEND_KEY = 'pending_' + TEST_ID;
+  let sending = false, sendTries = 0;
+  function saveStatus(kind) {
+    const e = $('save-status'); if (!e || PREVIEW) return;
+    e.className = kind;
+    e.textContent = kind === 'ok' ? '✓ Відповіді збережено на сервері.' : kind === 'sending' ? 'Зберігаємо відповіді…' :
+      kind === 'fail' ? 'Не вдалося зберегти відповіді. Не закривайте сторінку й покажіть екран вчителю.' : 'Немає зв\'язку. Не закривайте сторінку: відповіді збережені на цьому пристрої й будуть надіслані, щойно з\'явиться інтернет.';
+  }
+  function queueSubmit(params) {
+    if (PREVIEW) return;
+    params.testId = TEST_ID;
+    try { localStorage.setItem(PEND_KEY, JSON.stringify(params)); } catch (e) {}
+    pendingMem = params; sendTries = 0; flushPending();
+  }
+  let pendingMem = null;
+  function flushPending() {
+    if (sending || PREVIEW) return;
+    let p = pendingMem; try { p = p || JSON.parse(localStorage.getItem(PEND_KEY) || 'null'); } catch (e) {}
+    if (!p) return;
+    sending = true; saveStatus('sending');
+    fetch(SCRIPT_URL, { method: 'POST', body: new URLSearchParams(p), keepalive: true }).then(r => r.text()).then(t => {
+      if (!/^OK/.test(t)) throw new Error(t);
+      pendingMem = null; try { localStorage.removeItem(PEND_KEY); } catch (e) {}
+      saveStatus('ok');
+    }).catch(() => {
+      sendTries++;
+      if (sendTries >= 40) { saveStatus('fail'); return; }
+      saveStatus('retry'); setTimeout(flushPending, Math.min(15000, 1500 * sendTries) + Math.random() * 1000);
+    }).then(() => { sending = false; });
+  }
+  window.addEventListener('online', flushPending);
+
+
+  /* ---------- Правила гри (екран входу) ---------- */
+  const TYPE_NAME = { mcq: 'Одна правильна відповідь', multi: 'Кілька правильних відповідей', tf: 'Так / Ні', match: 'Відповідність', short: 'Коротка відповідь', open: 'Розгорнута відповідь', label: 'Підпис до малюнка', tap: 'Знайди на малюнку' };
+  const r2 = x => Math.round(x * 100) / 100, num = x => String(r2(x)).replace('.', ',');
+  const dur = sec => sec >= 60 ? Math.floor(sec / 60) + ' хв' + (sec % 60 ? ' ' + sec % 60 + ' с' : '') : sec + ' с';
+  function rulesOfTest(t) {   // те саме, що робить сервер
+    const secs = []; let total = 0, secTime = 0; const rt = (t.readTime == null || t.readTime === '') ? 8 : (+t.readTime || 0);
+    (t.sections || []).forEach(s => {
+      const qs = s.questions || []; if (!qs.length) return;
+      const n = s.type === 'tf' ? (+s.n || 1) : Math.min(+s.n || qs.length, qs.length);
+      const per = s.type === 'open' ? qs.reduce((a, q) => a + (+q.max || 2), 0) / qs.length : (+s.points || 0), time = +s.time || 60;
+      secs.push({ type: s.type, n, count: s.type === 'tf' ? Math.min(+s.count || 4, qs.length) : 0, time, per: r2(per), sum: r2(n * per) });
+      total += n * per; secTime += n * (time + rt);
+    });
+    return { sections: secs, max: r2(total), readTime: rt, totalMin: +t.totalTime > 0 ? +t.totalTime : Math.ceil(secTime / 60), showGrade: t.showGrade !== false, review: t.review === true };
+  }
+  function renderRules(R) {
+    const box = $('rules-box');
+    if (!R || !R.sections || !R.sections.length) { box.classList.add('hidden'); return; }
+    const cnt = R.sections.reduce((a, s) => a + s.n, 0), hasOpen = R.sections.some(s => s.type === 'open');
+    let h = '<h3>Правила гри</h3><div>Питань: <b>' + cnt + '</b> · максимум балів: <b>' + num(R.max) + '</b> · на всю роботу: <b>' + R.totalMin + ' хв</b></div>';
+    h += '<table><tr><th>Категорія</th><th class="n">Питань</th><th class="n">Час на питання</th><th class="n">Балів за питання</th><th class="n">Усього</th></tr>' +
+      R.sections.map(s => '<tr><td>' + esc(TYPE_NAME[s.type] || s.type) + (s.type === 'tf' ? '<br><span class="hint">у кожному ' + s.count + ' тверджень</span>' : '') + '</td><td class="n">' + s.n + '</td><td class="n">' + dur(s.time) + '</td><td class="n">' + (s.type === 'open' ? 'до ' : '') + num(s.per) + '</td><td class="n"><b>' + num(s.sum) + '</b></td></tr>').join('') + '</table>';
+    h += '<ul>' + (R.readTime > 0 ? '<li>Перед кожним питанням є <b>' + R.readTime + ' с на прочитання</b>: відлік часу ще не йде, кнопка «Наступне питання» вимкнена.</li>' : '') +
+      '<li>Коли час питання вийде, воно закривається автоматично. Загальний таймер зупиняє роботу, коли вичерпано <b>' + R.totalMin + ' хв</b>.</li>' +
+      '<li>Повернутися до попереднього питання не можна. Вихід зі сторінки фіксується.</li>' +
+      (hasOpen ? '<li>Розгорнуті відповіді оцінюються за наявністю ключових понять, а вчитель може скоригувати оцінку.</li>' : '') + '</ul>';
+    h += '<div class="formula">Оцінка (1–12) = 12 × набрані бали ÷ ' + num(R.max) + ', округлено до цілого, але не менше 1.<br><span style="font-weight:500">Наприклад, ' + num(r2(R.max * 0.75)) + ' балів із ' + num(R.max) + ' дають ' + Math.max(1, Math.round(12 * 0.75)) + '.</span></div>';
+    box.innerHTML = h; box.classList.remove('hidden');
+  }
+
+  /* ---------- Розбір для учня, який уже здав ---------- */
+  function fillRv() {
+    const cs = $('rv-class'); cs.length = 1;
+    Object.keys(INFO.groups).sort((a, b) => a.localeCompare(b, 'uk', { numeric: true })).forEach(c => cs.add(new Option(c, c)));
+    $('rev-box').classList.toggle('hidden', !(INFO.rules && INFO.rules.review));
+  }
+  $('rv-class').addEventListener('change', () => {
+    const ss = $('rv-student'), c = $('rv-class').value; ss.length = 0;
+    if (!c) { ss.add(new Option('— спочатку оберіть клас —', '')); ss.disabled = true; return; }
+    ss.add(new Option('— оберіть себе зі списку —', ''));
+    (INFO.groups[c] || []).slice().sort((a, b) => a.localeCompare(b, 'uk')).forEach(n => ss.add(new Option(n, n)));
+    ss.disabled = false;
+  });
+  const REV_ERR = { off: 'Розбір для цієї роботи вчитель ще не відкрив.', no_row: 'Результатів для цього учня не знайдено.', not_finished: 'Цю роботу ще не завершено.', not_found: 'Роботу не знайдено.' };
+  function openReview(cls, name, quiet) {
+    if (!cls || !name) { alert('Оберіть клас і прізвище.'); return Promise.resolve(false); }
+    return getJson('review=' + encodeURIComponent(TEST_ID) + '&cls=' + encodeURIComponent(cls) + '&name=' + encodeURIComponent(name)).then(r => {
+      if (r.error) { if (!quiet) alert(REV_ERR[r.error] || 'Помилка сервера.'); return false; }
+      renderReview(r, name); return true;
+    }).catch(() => { if (!quiet) alert('Немає зв\'язку із сервером.'); return false; });
+  }
+  $('rv-btn').addEventListener('click', () => openReview($('rv-class').value, $('rv-student').value));
+  function renderReview(r, name) {
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    let h = '<div class="subject">Мій розбір</div><h2>' + esc(r.title || '') + '</h2><p class="topic">' + esc(name) + '</p>';
+    h += '<div class="grade-box">Набрано балів<b>' + num(r.total) + ' з ' + num(r.max) + '</b>' + (r.grade != null && r.grade !== '' ? '<div style="margin-top:6px">Оцінка: <b style="display:inline;font-size:26px">' + esc(r.grade) + ' з 12</b>' + (r.byTeacher ? '<br><small>виставлена вчителем</small>' : '') + '</div>' : '') + '</div>';
+    if (r.general) h += '<div class="rv-item" style="border-left-color:#d6a400"><div class="qt">Коментар вчителя до роботи</div><div class="mine" style="background:#fff6dd">' + esc(r.general) + '</div></div>';
+    (r.items || []).forEach(it => {
+      const cls = it.earned == null ? '' : (it.max != null && it.earned >= it.max - 0.001 ? 'full' : (it.earned > 0 ? 'part' : 'zero'));
+      h += '<div class="rv-item ' + cls + '">' + (it.earned != null ? '<span class="pts">' + num(it.earned) + (it.max != null ? ' / ' + num(it.max) : '') + '</span>' : '') + '<div class="qt">' + esc(it.n) + '. ' + esc(it.title) + '</div>';
+      if (it.rows) h += it.rows.map(x => '<div class="tf"><b class="' + (x.ok ? 'ok' : 'no') + '">' + (x.ok ? '✓' : '✗') + '</b><span style="flex:1">' + esc(x.t) + '</span><span>' + esc(x.v) + (x.ok ? '' : ' (треба: ' + esc(x.right) + ')') + '</span></div>').join('');
+      else h += '<div class="mine">' + (esc(it.shown) || '<i>(порожньо)</i>') + '</div>';
+      if (it.good && !(it.earned != null && it.max != null && it.earned >= it.max - 0.001)) h += '<div class="good">' + esc(it.good) + '</div>';
+      if (it.comment) h += '<div class="tcm"><b>Вчитель:</b> ' + esc(it.comment) + '</div>';
+      h += '</div>';
+    });
+    const rs = $('review-screen'); rs.innerHTML = h + '<button id="rv-back" type="button">Закрити розбір</button>';
+    $('rv-back').onclick = () => location.reload();
+    $('start-screen').classList.add('hidden'); rs.classList.remove('hidden'); window.scrollTo(0, 0);
+  }
 
   /* ---------- Ініціалізація ---------- */
   function fatal(msg) {
@@ -249,7 +394,7 @@
     if (TEST) return;
     $('preview-badge').classList.remove('hidden'); document.body.style.paddingTop = '40px';
     TEST = t;
-    INFO = { title: t.title, subject: t.subject, topic: t.topic, groups: { 'Пробний запуск': ['Вчитель (пробний)'] }, awayOne: 9999, awayTotal: 9999, ctrl: { state: 'open', round: 1, stopSeq: 0 } };
+    INFO = { title: t.title, subject: t.subject, topic: t.topic, groups: { 'Пробний запуск': ['Вчитель (пробний)'] }, awayOne: 9999, awayTotal: 9999, rules: rulesOfTest(t), ctrl: { state: 'open', round: 1, stopSeq: 0 } };
     applyInfo(); applyCtrl(INFO.ctrl);
   }
   function init() {
@@ -277,7 +422,7 @@
     getJson('info=' + encodeURIComponent(TEST_ID)).then(info => {
       if (info.error) { fatal(info.error === 'not_found' ? 'Цю роботу не знайдено або її ще не опубліковано.' : 'Помилка сервера.'); return; }
       INFO = info; applyInfo(); applyCtrl(info.ctrl);
-      setInterval(pollCtrl, 4000);
+      schedulePoll();
     }).catch(() => { $('wait-msg').textContent = 'Немає зв\'язку із сервером. Повторна спроба…'; setTimeout(loadInfo, 4000); });
   }
   function applyInfo() {
@@ -288,6 +433,7 @@
     document.title = INFO.title || 'Самостійна робота';
     const cs = $('class-select'); cs.length = 1;
     Object.keys(INFO.groups).sort((a, b) => a.localeCompare(b, 'uk', { numeric: true })).forEach(c => cs.add(new Option(c, c)));
+    renderRules(INFO.rules); if (!PREVIEW) fillRv();
   }
   $('class-select').addEventListener('change', () => {
     const ss = $('student-select'), c = $('class-select').value;
@@ -299,11 +445,17 @@
   });
 
   /* ---------- Керування вчителя ---------- */
-  function pollCtrl() { if (PREVIEW || !INFO) return; getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(applyCtrl).catch(() => {}); }
+  let pollFails = 0;
+  function pollCtrl() {
+    if (PREVIEW || !INFO) return Promise.resolve();
+    return getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(c => { pollFails = 0; applyCtrl(c); }).catch(() => { pollFails++; });
+  }
+  // опитування кожні ~5–6,5 с із випадковим зсувом (щоб клас не «бив» по сервері одночасно); при збоях інтервал зростає
+  function schedulePoll() { setTimeout(() => { pollCtrl().then(schedulePoll); }, Math.min(20000, (5000 + Math.random() * 1500) * (1 + pollFails))); }
   function applyCtrl(c) {
-    if (isSubmitted || !c) return;
+    if (isSubmitted || !c || typeof c.state !== 'string' || typeof c.stopSeq !== 'number') return;   // помилкова/пошкоджена відповідь сервера не повинна нікого зупиняти
     if (isTestStarted) {
-      if (c.state === 'closed' || c.stopSeq !== myStop) { setPaused(false); finishTest(true, true); return; }
+      if (c.state === 'closed' || c.stopSeq > myStop) { setPaused(false); finishTest(true, true); return; }
       setPaused(c.state === 'paused');
       return;
     }
@@ -361,7 +513,7 @@
   /* ---------- Збереження стану (продовження після закриття сторінки) ---------- */
   function saveState() {
     if (PREVIEW || !isTestStarted || isSubmitted) return;
-    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, leaveLog, qTime, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL] })); } catch (e) {}
+    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, totalLeft, savedAt: Date.now(), leaveLog, qTime, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL] })); } catch (e) {}
   }
   function clearState() { try { localStorage.removeItem(ST_KEY); } catch (e) {} }
   function loadState() { if (PREVIEW) return null; try { return JSON.parse(localStorage.getItem(ST_KEY) || 'null'); } catch (e) { return null; } }
@@ -369,6 +521,7 @@
     questions = st.questions; currentQ = st.currentQ; answers = st.answers; testScore = st.testScore;
     leaves = (st.leaves || 0) + 1; pasteAttempts = st.pastes || 0; awayTotal = st.awayTotal || 0;
     leaveLog = st.leaveLog || []; qTime = st.qTime || {};
+    totalLeft = typeof st.totalLeft === 'number' ? Math.max(1, st.totalLeft - (Date.now() - (st.savedAt || Date.now())) / 1000) : totalSeconds_(st.questions);
     leaveLog.push({ s: (st.questions[st.currentQ] || {}).slot || '', k: 'resume', d: 0 });
     className = st.className; studentName = st.studentName; myRound = st.round; myStop = st.stop;
     MAX_AUTO = questions.reduce((s, q) => s + q.points, 0); resumeLeft = st.timeLeft; isTestStarted = true;
@@ -377,7 +530,7 @@
     const st = loadState(); if (!st) { location.reload(); return; }
     restoreState(st);
     $('start-screen').classList.add('hidden'); $('quiz-screen').classList.remove('hidden');
-    loadQuestion(); pollCtrl();
+    startTotal(); loadQuestion(); pollCtrl();
   });
 
   /* ---------- Вихід зі сторінки (м'які правила) і пауза ---------- */
@@ -395,9 +548,9 @@
   const leaveLogStr = () => leaveLog.map(e => e.s + '|' + e.k + '|' + (e.d || 0)).join(';');
   const qTimeStr = () => Object.keys(qTime).map(k => k + ':' + qTime[k]).join(';');
   const fsLost = () => fsOn && !document.fullscreenElement;
-  function onLeave(kind) {
+  function onLeave(kind, since) {
     if (PREVIEW || !isTestStarted || isSubmitted || paused || awayStart !== null) return;
-    awayStart = Date.now(); leaves++; leaveBy[kind] = (leaveBy[kind] || 0) + 1;
+    awayStart = since || Date.now(); leaves++; leaveBy[kind] = (leaveBy[kind] || 0) + 1;
     curLeave = { s: curSlot(), k: kind, d: 0 }; leaveLog.push(curLeave);
     saveState(); sendPartial();
   }
@@ -438,9 +591,21 @@
   window.addEventListener('blur', () => {
     // клік по відео YouTube (iframe) — це не вихід зі сторінки
     if (document.activeElement && document.activeElement.tagName === 'IFRAME') return;
-    if (COARSE) { if (isTestStarted && !isSubmitted) blurIgnored++; } else onLeave('blur');
+    if (COARSE) { if (isTestStarted && !isSubmitted) blurIgnored++; return; }
+    softBlur();
   });
-  window.addEventListener('focus', onReturn);
+  // Втрата фокуса вікном рахується виходом, лише якщо триває понад ~1,2 с; вихід зі вкладки (visibilitychange) рахується одразу
+  let blurTimer = null;
+  function softBlur() {
+    if (blurTimer || awayStart !== null) return;
+    const t0 = Date.now();
+    blurTimer = setTimeout(() => {
+      blurTimer = null;
+      const ifr = document.activeElement && document.activeElement.tagName === 'IFRAME';
+      if (!document.hasFocus() && !ifr && !document.hidden) onLeave('blur', t0);
+    }, 1200);
+  }
+  window.addEventListener('focus', () => { if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; } onReturn(); });
   // Страховка: деякі способи піти зі сторінки (бічна панель Lens, інше вікно) не дають події — тому опитуємо стан кожні 300 мс.
   let splitCnt = 0;
   setInterval(() => {
@@ -448,13 +613,13 @@
     const ifr = document.activeElement && document.activeElement.tagName === 'IFRAME';
     if (!COARSE) {
       const f = document.hasFocus() || ifr;
-      if (!f && awayStart === null) onLeave('blur');
+      if (!f && awayStart === null) softBlur();
       else if (f && awayStart !== null) onReturn();
     } else {
       const typing = /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || '');
-      const split = innerWidth / screen.width < 0.7 || (!typing && innerHeight / screen.height < 0.5);   // розділений екран / плаваюче вікно
+      const split = innerWidth / screen.width < 0.6 || (!typing && innerHeight / screen.height < 0.4);   // розділений екран / плаваюче вікно
       splitCnt = split ? splitCnt + 1 : 0;
-      if (splitCnt >= 2 && awayStart === null) onLeave('split');
+      if (splitCnt >= 4 && awayStart === null) onLeave('split');
       else if (!split && awayStart !== null && curLeave && curLeave.k === 'split') onReturn();
     }
   }, 300);
@@ -481,6 +646,7 @@
     isTestStarted = true; fsOn = !!document.fullscreenElement && wantFs();
     if (document.fullscreenElement && !wantFs()) { try { document.exitFullscreen(); } catch (e) {} }
     $('start-screen').classList.add('hidden'); $('quiz-screen').classList.remove('hidden');
+    totalLeft = totalSeconds_(questions); startTotal();
     loadQuestion();
   }
   function startTest() {
@@ -491,7 +657,10 @@
     clearClipboard(); enterFs();
     if (PREVIEW) { myRound = 1; myStop = 0; begin(TEST); return; }
     sendDataToScript({ action: 'start', className, studentName }).then(r => r.text()).then(status => {
-      if (status === 'ALREADY_STARTED') { alert('Увага! Цей учень уже розпочинав або склав цю роботу. Зверніться до вчителя.'); resetStartBtn(); }
+      if (status === 'ALREADY_STARTED') {
+        const done = () => { alert('Увага! Цей учень уже розпочинав або склав цю роботу. Зверніться до вчителя.'); resetStartBtn(); };
+        if (INFO.rules && INFO.rules.review) openReview(className, studentName, true).then(ok => { if (!ok) done(); }); else done();
+      }
       else if (status === 'NOT_OPEN') { alert('Вчитель ще не розпочав роботу (або її зупинено). Зачекайте.'); resetStartBtn(); }
       else if (status === 'NOT_ASSIGNED' || status === 'NO_TEST') { alert('Ця робота не призначена для вашої групи.'); resetStartBtn(); }
       else if (status.indexOf('OK_STARTED') === 0) {
@@ -506,9 +675,27 @@
   }
 
   /* ---------- Відображення питань ---------- */
+  /* ---------- Час на прочитання та загальний таймер ---------- */
+  const readSecs = () => { const r = TEST && TEST.readTime != null && TEST.readTime !== '' ? +TEST.readTime : 8; return r > 0 ? Math.round(r) : 0; };
+  function totalSeconds_(qs) {
+    const t = TEST && +TEST.totalTime > 0 ? +TEST.totalTime * 60 : 0;
+    return t || qs.reduce((a, q) => a + q.time + readSecs(), 0);
+  }
+  const fmt = sec => { sec = Math.max(0, Math.ceil(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+  function startTotal() {
+    clearInterval(totalTimer); lastTick = Date.now(); $('total').textContent = fmt(totalLeft);
+    totalTimer = setInterval(() => {
+      const now = Date.now(), dt = (now - lastTick) / 1000; lastTick = now;
+      if (paused || isSubmitted) return;                         // на паузі (тривога) загальний час теж стоїть
+      totalLeft -= dt; $('total').textContent = fmt(totalLeft);
+      $('total-box').classList.toggle('low', totalLeft <= 60);
+      if (totalLeft <= 0 && !PREVIEW) finishTest(true, false, 'time');
+    }, 1000);
+  }
   function loadQuestion() {
     clearInterval(timerInterval);
     const q = questions[currentQ];
+    const resuming = resumeLeft !== null;
     timeLeft = (resumeLeft !== null ? resumeLeft : q.time); resumeLeft = null; qStartTs = Date.now();
     $('timer').textContent = timeLeft;
     $('progress').textContent = 'Питання ' + (currentQ + 1) + ' з ' + questions.length;
@@ -548,13 +735,28 @@
 
     saveState();
     $('timer-box').classList.remove('low');
-    timerInterval = setInterval(() => {
-      if (paused) return;
-      timeLeft--; saveState();
-      $('timer').textContent = Math.max(timeLeft, 0);
-      $('timer-box').classList.toggle('low', timeLeft <= 10);
-      if (timeLeft <= 0) { clearInterval(timerInterval); nextQuestion(); }
-    }, 1000);
+    const nb = $('next-btn'), note = $('read-note');
+    const startCount = () => {
+      reading = false; nb.disabled = false; note.classList.add('hidden');
+      timerInterval = setInterval(() => {
+        if (paused) return;
+        timeLeft--; saveState();
+        $('timer').textContent = Math.max(timeLeft, 0);
+        $('timer-box').classList.toggle('low', timeLeft <= 10);
+        if (timeLeft <= 0) { clearInterval(timerInterval); nextQuestion(); }
+      }, 1000);
+    };
+    const rd = resuming ? 0 : readSecs();
+    if (rd > 0) {   // спершу час на прочитання: відлік питання ще не йде, кнопка «Далі» вимкнена
+      reading = true; nb.disabled = true; readLeft = rd;
+      const show = () => { note.textContent = 'Прочитайте питання. Відлік часу почнеться через ' + readLeft + ' с'; };
+      note.classList.remove('hidden'); show();
+      timerInterval = setInterval(() => {
+        if (paused) return;
+        readLeft--;
+        if (readLeft <= 0) { clearInterval(timerInterval); startCount(); } else show();
+      }, 1000);
+    } else startCount();
   }
 
   function wireLabel(q) {
@@ -647,7 +849,11 @@
     q.saved = true;
   }
   $('next-btn').addEventListener('click', nextQuestion);
+  let lastAdvance = 0;
   function nextQuestion() {
+    // подвійний дотик (або дотик одночасно з таймером) не повинен пропускати наступне питання
+    if (reading) return;
+    const t = Date.now(); if (t - lastAdvance < 600) return; lastAdvance = t;
     clearInterval(timerInterval); clearClipboard();
     saveCurrentAnswer();
     currentQ++;
@@ -658,7 +864,7 @@
     if (isSubmitted || !isTestStarted) return;
     isSubmitted = true; clearState();
     if (interrupted && currentQ < questions.length) saveCurrentAnswer();
-    sendDataToScript({
+    queueSubmit({
       action: 'submit', className, studentName,
       testScore: String(Math.round(testScore * 100) / 100), answers: JSON.stringify(answers),
       isInterrupted: interrupted ? 'true' : 'false', byTeacher: byTeacher ? 'true' : 'false',
@@ -677,14 +883,22 @@
       isInterrupted: 'true', leaves: String(leaves), pastes: String(pasteAttempts), awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr(), leaveLog: leaveLogStr(), qTime: qTimeStr()
     });
   }
-  function finishTest(forced, byTeacher) {
-    clearInterval(timerInterval);
+  function showEstGrade() {
+    const box = $('grade-box');
+    if (!TEST || TEST.showGrade === false || !(MAX_AUTO > 0)) { box.classList.add('hidden'); return; }
+    const g = Math.max(1, Math.min(12, Math.round(12 * testScore / MAX_AUTO))), hasOpen = questions.some(q => q.type === 'open');
+    box.innerHTML = 'Орієнтовна оцінка<b>' + g + ' з 12</b><small>' + (hasOpen ? 'Розраховано за тестовою частиною. Розгорнуті відповіді перевірить вчитель, тому остаточна оцінка може змінитися.' : 'Остаточну оцінку виставляє вчитель.') + '</small>';
+    box.classList.remove('hidden');
+  }
+  function finishTest(forced, byTeacher, reason) {
+    clearInterval(timerInterval); clearInterval(totalTimer); reading = false; $('read-note').classList.add('hidden');
     $('warn-overlay').classList.add('hidden'); $('quiz-screen').classList.add('hidden'); $('start-screen').classList.add('hidden'); $('pause-overlay').classList.add('hidden');
     $('end-screen').classList.remove('hidden');
-    if (forced) $('end-msg').textContent = byTeacher
-      ? 'Вчитель зупинив роботу. Ваші відповіді збережено й відправлено вчителю.'
-      : 'Роботу завершено достроково: ви надто довго були поза сторінкою. Відповіді відправлено вчителю.';
+    if (forced) $('end-msg').textContent = reason === 'time' ? 'Загальний час роботи вичерпано. Ваші відповіді буде надіслано вчителю.' : byTeacher
+      ? 'Вчитель зупинив роботу. Ваші відповіді буде надіслано вчителю.'
+      : 'Роботу завершено достроково: ви надто довго були поза сторінкою. Відповіді буде надіслано вчителю.';
     submitResults(forced, byTeacher);
+    showEstGrade();
     if (PREVIEW) {
       $('end-msg').textContent = 'Пробний запуск завершено. Автоматично нараховано ' + (Math.round(testScore * 100) / 100) + ' з ' + (Math.round(MAX_AUTO * 100) / 100) + ' балів (відкриті питання перевіряються на сервері після справжнього запуску).';
       const rl = $('preview-result'); rl.classList.remove('hidden');
@@ -702,6 +916,7 @@
     } else clickTimer = setTimeout(() => { clickCount = 0; }, 1000);
   });
 
+  flushPending();   // якщо минулого разу відповіді не встигли піти — надсилаємо тепер
   init();
 })();
 </script>
