@@ -99,6 +99,7 @@
   @media (max-width: 560px) { .pairrow, .crow { grid-template-columns: 1fr auto; } .pairrow input:nth-child(2), .crow input:nth-child(2) { grid-column: 1; } }
   .addrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   .help { font-size: 13px; color: var(--muted); margin: 6px 0; }
+  textarea.cm { width: 100%; margin-top: 8px; padding: 7px 10px; border: 1.5px dashed #d6a400; border-radius: 8px; background: #fffbea; font: inherit; font-size: 14px; resize: vertical; }
   details.media { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
   details.media summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--primary); }
   .imgf { display: flex; gap: 12px; align-items: flex-start; margin: 10px 0; flex-wrap: wrap; }
@@ -261,7 +262,7 @@
       const pool = s.questions.length, tn = TYPES[s.type].name, tag = 'Блок ' + (si + 1) + ' («' + tn + '»): ';
       if (!pool) { warns.push(tag + 'немає питань'); return; }
       const n = s.type === 'tf' ? (+s.n || 1) : Math.min(+s.n || pool, pool);
-      secs += n * (+s.time || 0);
+      secs += n * ((+s.time || 0) + (t.readTime == null || t.readTime === '' ? 8 : +t.readTime || 0));
       if (s.type === 'open') open += n * (s.questions.reduce((a, q) => a + (+q.max || 2), 0) / pool); else auto += n * (+s.points || 0);
       if (s.type !== 'tf' && +s.n > pool) warns.push(tag + 'питань на учня (' + s.n + ') більше, ніж у банку (' + pool + ') — буде взято всі');
       if (s.type === 'tf' && pool < (+s.count || 4)) warns.push(tag + 'тверджень менше, ніж у блоці (' + (s.count || 4) + ')');
@@ -325,7 +326,7 @@
   }
 
   function newTest() {
-    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 5, awayTotal: 15, fs: true, groups: [], sections: [] };
+    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 5, awayTotal: 15, fs: true, readTime: 8, totalTime: '', showGrade: true, review: false, groups: [], sections: [] };
     S.dirty = true; showEdit();
   }
   async function openTest(id, then) {
@@ -454,7 +455,11 @@
       '<div style="grid-column:1/-1"><label class="f">Тема (показується учням)</label>' + inp('topic', t.topic, { ph: 'Нервова система. Спинний мозок. Рефлекс' }) + '</div>' +
       '<div><label class="f">Найдовший дозволений вихід зі сторінки, с</label>' + inp('awayOne', t.awayOne, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Усього поза сторінкою за роботу, с</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Повний екран на комп\'ютері</label><select data-p="fs" data-k="bool"><option value="true"' + (t.fs !== false ? ' selected' : '') + '>Вимагати</option><option value="false"' + (t.fs === false ? ' selected' : '') + '>Не вимагати</option></select></div></div>' +
+      '<div><label class="f">Повний екран на комп\'ютері</label><select data-p="fs" data-k="bool"><option value="true"' + (t.fs !== false ? ' selected' : '') + '>Вимагати</option><option value="false"' + (t.fs === false ? ' selected' : '') + '>Не вимагати</option></select></div>' +
+      '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Загальний час на роботу, хв (порожньо — сума часу питань)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Орієнтовна оцінка після здачі</label><select data-p="showGrade" data-k="bool"><option value="true"' + (t.showGrade !== false ? ' selected' : '') + '>Показувати учню</option><option value="false"' + (t.showGrade === false ? ' selected' : '') + '>Не показувати</option></select></div>' +
+      '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div></div>' +
       (t.sheetName ? '<p class="help">Результати пишуться в аркуш Google Таблиці: «' + esc(t.sheetName) + '».</p>' : '<p class="help">Аркуш результатів створиться автоматично після першого збереження.</p>') + '</div>' +
       (t.sections.length ? t.sections.map((s, i) => secHtml(s, i, t)).join('') : '<div class="panel"><div class="empty">Додайте перший блок питань.</div></div>') +
       '<div class="panel"><h2>Додати блок питань</h2><div class="grid"><select id="newtype">' + Object.keys(TYPES).map(k => '<option value="' + k + '">' + esc(TYPES[k].name) + '</option>').join('') + '</select>' +
@@ -682,7 +687,9 @@
     if (a.earned != null) { pts = '<span class="pts">' + a.earned + (max != null ? ' / ' + max : '') + '</span>'; cls = max != null && a.earned >= max - 0.001 ? 'full' : (a.earned > 0 ? 'part' : 'zero'); }
     const lv = leaveList(row).filter(e => e.s === slot), tm = qTimes(row)[slot];
     const flags = (tm != null ? '<span class="muted" style="font-size:13px">⏱ ' + tm + ' с</span>' : '') + (lv.length ? '<div style="color:#b42318;font-size:13.5px;font-weight:600;margin-top:4px">⚠ Виходів на цьому питанні: ' + lv.length + ' — ' + lv.map(e => esc(leaveTxt(e))).join('; ') + '</div>' : '');
-    return '<div class="ans ' + cls + '" style="' + (lv.length ? 'box-shadow:inset 4px 0 0 #b42318' : '') + '">' + pts + '<div class="qt">' + n + '. ' + esc(title) + '</div>' + flags + body + (good ? '<div class="ok-line">' + esc(good) + '</div>' : '') + '</div>';
+    const cmv = (row.comments || {})[slot] || '';
+    return '<div class="ans ' + cls + '" style="' + (lv.length ? 'box-shadow:inset 4px 0 0 #b42318' : '') + '">' + pts + '<div class="qt">' + n + '. ' + esc(title) + '</div>' + flags + body + (good ? '<div class="ok-line">' + esc(good) + '</div>' : '') +
+      '<textarea class="cm" data-cm="' + slot + '" rows="1" placeholder="Коментар для учня (побачить у розборі)">' + esc(cmv) + '</textarea></div>';
   }
   function drawDetail() {
     const rows = filtered(), r = rows[S.rd], host = $('#rd');
@@ -698,9 +705,18 @@
       '<div class="muted" style="font-size:13px;flex:1 1 140px">Автоматична оцінка: <b>' + (ag !== '' ? ag : '—') + '</b>' + (r.final !== '' ? '<br>Ваша оцінка: <b>' + esc(r.final) + '</b>' : '') + '</div>' +
       '<button class="btn" data-act="rd-save">Зберегти оцінку</button><button class="btn ghost" data-act="rd-reset"' + (r.final === '' ? ' disabled' : '') + '>Повернути автоматичну</button>' +
       '<button class="btn ok" data-act="rd-journal">Занести в журнал</button></div>' +
+      '<textarea class="cm" data-cm="all" rows="2" placeholder="Загальний коментар до роботи (учень побачить у розборі)">' + esc((r.comments || {}).all || '') + '</textarea>' +
       (slots.length ? slots.map(sl => answerCard(sl, r.answers[sl], r, idx)).join('') : '<div class="empty">Відповідей ще немає.</div>') + '</div>';
     host.scrollTop = keepScroll;
   }
+  document.addEventListener('change', async e => {
+    const ta = e.target.closest && e.target.closest('textarea[data-cm]'); if (!ta || S.rd == null) return;
+    const r = filtered()[S.rd]; if (!r) return;
+    r.comments = r.comments || {}; const v = ta.value.trim();
+    if (v) r.comments[ta.dataset.cm] = v; else delete r.comments[ta.dataset.cm];
+    try { await api('t_comment', { id: S.cur.id, cls: r.cls, name: r.name, round: r.round, json: JSON.stringify(r.comments) }); toast('Коментар збережено'); }
+    catch (err) { if (err.message !== 'pin') toast('Не вдалося зберегти коментар: ' + err.message, true); }
+  });
   async function saveGrade(r, val) {
     try {
       await api('t_grade', { id: S.cur.id, cls: r.cls, name: r.name, round: r.round, grade: val });
