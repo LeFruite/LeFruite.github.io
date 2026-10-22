@@ -7,8 +7,8 @@
 <script src="config.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1f7a5a">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Самостійні">
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
@@ -271,7 +271,7 @@
     if (s.meter && sc.hintBy) h += '<div class="hints"><div><b style="color:var(--c0)">' + esc(rn.ark) + ':</b> ' + esc(sc.hintBy.ark) + '</div><div><b style="color:var(--bad)">' + esc(rn.agg) + ':</b> ' + esc(sc.hintBy.agg) + '</div></div>';
     if (s.revealed && s.result) h += '<div class="res ' + esc(s.result.tone) + '"><h2>' + esc(s.result.title) + '</h2><p>' + esc(s.result.text) + '</p></div>';
     // --- голос вчителя (він агресор)
-    if ((sc.kind === 'press' || sc.kind === 'choice') && !s.revealed) {
+    if ((sc.kind === 'press' || sc.kind === 'choice') && !s.revealed && !s.noTeacher) {
       h += '<div class="mine"><b>Ваш вибір як агресора (' + esc(NAME) + ')</b><div class="row">' + (sc.kind === 'press'
         ? '<button class="btn ' + (me && me.vote !== null ? 'green' : 'ghost') + '" data-tv="1">' + (me && me.vote !== null ? '✓ Ви проголосували' : esc(sc.button)) + '</button>'
         : sc.optionsBy.agg.map((o, i) => '<button class="btn ghost' + (me && me.vote === String(i) ? ' sel' : '') + '" data-tv="' + i + '">' + esc(o.t) + '</button>').join('')) + '</div></div>';
@@ -294,7 +294,7 @@
         (lab ? '<div class="vt" title="' + esc(full) + '" style="background:' + (sc.kind === 'choice' ? COL[+p.vote % 6] : 'var(--ok)') + '">' + esc(lab) + '</div>' : '') + '</div>';
     };
     let r = '<div class="rh"><b>Учасники</b><span class="muted">підключено ' + joinedReal + ' з ' + real.length + ' · зробили вибір ' + voted + '</span></div>';
-    r += '<div class="pl one">' + chip(Object.assign({}, me, { cls: 'агресор (вчитель)' })) + '</div>';
+    if (!s.noTeacher && me) r += '<div class="pl one">' + chip(Object.assign({}, me, { cls: 'агресор (вчитель)' })) + '</div>';
     [['agg', 'agg'], ['ark', 'ark']].forEach(([k]) => {});
     ['ark', 'agg'].forEach(k => {
       const list = real.filter(p => p.role === k);
