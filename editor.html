@@ -192,7 +192,12 @@
     short: { name: 'Коротка відповідь', color: '#4b6172', def: { n: 2, points: 0.5, time: 35 } },
     open:  { name: 'Розгорнута відповідь (оцінюється за поняттями)', color: '#b4234f', def: { n: 2, time: 110 } },
     label: { name: 'Підпиши малюнок', color: '#2f7d32', def: { n: 1, points: 2, time: 90 } },
-    tap:   { name: 'Знайди на малюнку', color: '#a21caf', def: { n: 1, points: 1, time: 45 } }
+    tap:   { name: 'Знайди на малюнку', color: '#a21caf', def: { n: 1, points: 1, time: 45 } },
+    order: { name: 'Розташуй у правильному порядку', color: '#0b6e99', def: { n: 1, points: 2, time: 60 } },
+    cloze: { name: 'Заповни пропуски (слова зі списку)', color: '#8a5a00', def: { n: 1, points: 2, time: 75 } },
+    num:   { name: 'Числова відповідь (з допуском)', color: '#5b4b8a', def: { n: 2, points: 1, time: 60 } },
+    group: { name: 'Розподіл по групах', color: '#2c7a4b', def: { n: 1, points: 3, time: 80 } },
+    find:  { name: 'Знайди в тексті (виділи слова)', color: '#b0446a', def: { n: 1, points: 2, time: 70 } }
   };
   const STATE_TXT = { open: 'Відкрито', paused: 'Пауза', closed: 'Закрито' };
 
@@ -226,7 +231,7 @@
   function newTestId() { return 't' + Math.random().toString(36).slice(2, 8); }
 
   /* ---------- шаблони питань ---------- */
-  const PREFIX = { mcq: 'm', multi: 'x', match: 't', short: 's', open: 'h', label: 'p', tap: 'k' };
+  const PREFIX = { mcq: 'm', multi: 'x', match: 't', short: 's', open: 'h', label: 'p', tap: 'k', order: 'o', cloze: 'c', num: 'n', group: 'g', find: 'f' };
   function newQ(type) {
     switch (type) {
       case 'mcq': return { id: uid('m'), text: '', o: ['', '', '', ''] };
@@ -236,6 +241,11 @@
       case 'short': return { id: uid('s'), text: '', acc: [] };
       case 'open': return { id: uid('h'), text: '', max: 2, concepts: [{ n: '', k: '' }, { n: '', k: '' }, { n: '', k: '' }] };
       case 'label': return { id: uid('p'), text: 'Підпишіть позначені частини:', img: '', marks: [], extra: [] };
+      case 'order': return { id: uid('o'), text: 'Розташуйте події у правильному порядку:', items: ['', '', ''] };
+      case 'cloze': return { id: uid('c'), text: 'Клітина має [[ядро]] і [[цитоплазму]].', extra: [] };
+      case 'num': return { id: uid('n'), text: '', ans: undefined, tol: 0, unit: '' };
+      case 'group': return { id: uid('g'), text: 'Розподіліть за групами:', cats: ['', ''], items: [{ t: '', c: 0 }, { t: '', c: 1 }] };
+      case 'find': return { id: uid('f'), text: 'Торкніться слів, які ...', passage: 'Слово *правильне* слово' };
       case 'tap': return { id: uid('k'), text: '', img: '', targets: [] };
     }
   }
@@ -249,6 +259,9 @@
         if (s.type === 'open') q.concepts = q.concepts || [];
         if (s.type === 'label') { q.marks = q.marks || []; q.extra = q.extra || []; }
         if (s.type === 'tap') q.targets = q.targets || [];
+        if (s.type === 'order') q.items = q.items || [];
+        if (s.type === 'cloze') q.extra = q.extra || [];
+        if (s.type === 'group') { q.cats = q.cats || []; q.items = q.items || []; }
       });
     });
     return t;
@@ -281,6 +294,11 @@
         if (s.type === 'open' && !q.concepts.some(c => String(c.k || c.p || (c.ps || []).length || '').trim())) warns.push(w + 'не задано ключових слів для автооцінки');
         if (s.type === 'label' && (!q.img || !q.marks.length)) warns.push(w + 'потрібні малюнок і хоч одна мітка');
         if (s.type === 'label' && q.marks.some(m => !String(m.a).trim())) warns.push(w + 'є мітка без підпису');
+        if (s.type === 'order') { const it = (q.items || []).filter(x => String(x).trim()); if (it.length < 3) warns.push(w + 'потрібно щонайменше 3 пункти'); if (new Set(it).size < it.length) warns.push(w + 'є однакові пункти (порядок можна переплутати)'); }
+        if (s.type === 'cloze' && !/\[\[[^\]]+\]\]/.test(q.text || '')) warns.push(w + 'немає пропусків: візьміть слово у подвійні дужки, наприклад [[ядро]]');
+        if (s.type === 'num' && (q.ans === undefined || q.ans === '' || isNaN(+q.ans))) warns.push(w + 'не вказано правильного числа');
+        if (s.type === 'group') { if ((q.cats || []).length < 2) warns.push(w + 'потрібно щонайменше 2 групи'); if ((q.items || []).filter(it => String(it.t || '').trim()).length < 2) warns.push(w + 'потрібно щонайменше 2 елементи'); }
+        if (s.type === 'find' && !/\*[^*\s][^*]*\*/.test(q.passage || '')) warns.push(w + 'не позначено правильних слів зірочками, наприклад *слово*');
         if (s.type === 'tap' && (!q.img || !q.targets.length)) warns.push(w + 'потрібні малюнок і правильне місце');
       });
     });
@@ -306,7 +324,7 @@
 
   async function showList() {
     stopMon(); S.view = 'list'; S.cur = null; S.dirty = false;
-    app.innerHTML = topbar('<a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
+    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
       '<div class="wrap"><h1>Роботи</h1><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
     $('#new').onclick = newTest; $('#imp').onclick = () => $('#importpick').click();
     try {
@@ -326,7 +344,7 @@
   }
 
   function newTest() {
-    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 5, awayTotal: 15, fs: true, readTime: 8, totalTime: '', showGrade: true, review: false, groups: [], sections: [] };
+    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 5, awayTotal: 15, fs: true, readTime: 8, totalTime: '', showGrade: true, review: false, warn: false, groups: [], sections: [] };
     S.dirty = true; showEdit();
   }
   async function openTest(id, then) {
@@ -409,6 +427,29 @@
       h += imgField(si, qi, q);
       h += '<div class="mark-host" data-s="' + si + '" data-q="' + qi + '" data-kind="label"></div>';
       h += '<label class="f" style="margin-top:10px">Зайві підписи для складності (через кому, необов\'язково)</label>' + inp(p + '.extra', (q.extra || []).join(', '), { k: 'csv', ph: 'печінка, селезінка' });
+    } else if (s.type === 'order') {
+      h += '<label class="f" style="margin-top:10px">Пункти у ПРАВИЛЬНОМУ порядку (по одному в рядку). Учням вони показуються перемішаними</label>' + '<textarea data-p="' + p + '.items" data-k="lines" rows="5">' + esc((q.items || []).join('\n')) + '</textarea>';
+      h += '<p class="help">Бали нараховуються за кожну правильну пару сусідніх пунктів, тож одна помилка не знищує всю відповідь.</p>';
+    } else if (s.type === 'cloze') {
+      h += '<p class="help">У тексті питання візьміть пропущене слово в подвійні квадратні дужки: «Клітина має [[ядро]] і [[мембрану]]». Учень вибирає слова зі спільного списку в кожному пропуску.</p>';
+      h += '<label class="f" style="margin-top:10px">Зайві слова для складності (через кому, необов\'язково)</label>' + inp(p + '.extra', (q.extra || []).join(', '), { k: 'csv', ph: 'мітохондрія, рибосома' });
+    } else if (s.type === 'num') {
+      h += '<div class="grid" style="margin-top:10px"><div><label class="f">Правильне число</label>' + inp(p + '.ans', q.ans, { type: 'number', k: 'n' }) + '</div>' +
+        '<div><label class="f">Допуск ± (0 — точно)</label>' + inp(p + '.tol', q.tol, { type: 'number', k: 'n' }) + '</div>' +
+        '<div><label class="f">Одиниці (показуються поруч, необов\'язково)</label>' + inp(p + '.unit', q.unit, { ph: 'м, км, %' }) + '</div></div>';
+    } else if (s.type === 'group') {
+      h += '<label class="f" style="margin-top:10px">Групи (по одній у рядку)</label><textarea data-p="' + p + '.cats" data-k="lines" data-r="1" rows="3">' + esc((q.cats || []).join('\n')) + '</textarea>';
+      h += '<label class="f" style="margin-top:10px">Елементи та їхня правильна група</label>';
+      const opts = (c) => (q.cats || []).map((g, gi) => '<option value="' + gi + '"' + (+c === gi ? ' selected' : '') + '>' + esc(g) + '</option>').join('');
+      (q.items || []).forEach((it, i) => {
+        h += '<div class="pairrow">' + inp(p + '.items.' + i + '.t', it.t, { ph: 'Елемент' }) + '<select data-p="' + p + '.items.' + i + '.c" data-k="n">' + opts(it.c) + '</select>' +
+          ((q.items || []).length > 2 ? '<button class="icon x" data-act="del-gitem" ' + at + ' data-i="' + i + '">✕</button>' : '<span style="width:30px"></span>') + '</div>';
+      });
+      if ((q.items || []).length < 12) h += '<div class="addrow"><button class="btn ghost sm" data-act="add-gitem" ' + at + '>+ елемент</button></div>';
+      h += '<p class="help">Після зміни списку груп натисніть поза полем: списки в елементах оновляться.</p>';
+    } else if (s.type === 'find') {
+      h += '<label class="f" style="margin-top:10px">Текст. Правильні слова позначте зірочками: *слово*</label>' + '<textarea data-p="' + p + '.passage" data-k="s" rows="5">' + esc(q.passage || '') + '</textarea>';
+      h += '<p class="help">Учень торкається слів у тексті. Правильні виділення додають бали, зайві віднімають (не нижче нуля). Позначайте кожне слово окремо: *Сонце* *світить*. Розділові знаки можна ставити всередині зірочок: *слово,*</p>';
     } else if (s.type === 'tap') {
       h += imgField(si, qi, q);
       h += '<div class="mark-host" data-s="' + si + '" data-q="' + qi + '" data-kind="tap"></div>';
@@ -427,7 +468,7 @@
     h += '<div class="sec-params">';
     h += '<div><label class="f">' + (s.type === 'tf' ? 'Скільки блоків «Так/Ні»' : 'Питань кожному учневі') + '</label>' + inp(sp + '.n', s.n, { type: 'number', k: 'n' }) + '</div>';
     if (s.type === 'tf') h += '<div><label class="f">Тверджень у блоці</label>' + inp(sp + '.count', s.count, { type: 'number', k: 'n' }) + '</div>';
-    if (s.type !== 'open') h += '<div><label class="f">' + (s.type === 'tf' ? 'Балів за блок' : (s.type === 'match' || s.type === 'label' ? 'Балів за все питання' : 'Балів за питання')) + '</label>' + inp(sp + '.points', s.points, { type: 'number', k: 'n' }) + '</div>';
+    if (s.type !== 'open') h += '<div><label class="f">' + (s.type === 'tf' ? 'Балів за блок' : (['match', 'label', 'order', 'cloze', 'group', 'find'].includes(s.type) ? 'Балів за все питання' : 'Балів за питання')) + '</label>' + inp(sp + '.points', s.points, { type: 'number', k: 'n' }) + '</div>';
     h += '<div><label class="f">Секунд на питання</label>' + inp(sp + '.time', s.time, { type: 'number', k: 'n' }) + '</div></div>';
     if (s.type !== 'tf') h += '<p class="help" style="padding:0 14px;margin-top:0">Якщо в банку більше питань, ніж потрібно одному учневі, кожен отримає випадкові — це дає різні варіанти.</p>';
     h += '<div class="qs">';
@@ -453,13 +494,14 @@
       '<div class="panel"><div class="grid two"><div><label class="f">Назва роботи</label>' + inp('title', t.title) + '</div>' +
       '<div><label class="f">Предмет</label><input type="text" list="subj" data-p="subject" data-k="s" value="' + esc(t.subject || '') + '"><datalist id="subj"><option value="Біологія"><option value="Географія"></datalist></div>' +
       '<div style="grid-column:1/-1"><label class="f">Тема (показується учням)</label>' + inp('topic', t.topic, { ph: 'Нервова система. Спинний мозок. Рефлекс' }) + '</div>' +
-      '<div><label class="f">Найдовший дозволений вихід зі сторінки, с</label>' + inp('awayOne', t.awayOne, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Усього поза сторінкою за роботу, с</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Найдовший вихід зі сторінки, с (лише з попередженнями)</label>' + inp('awayOne', t.awayOne, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Усього поза сторінкою, с (лише з попередженнями)</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Повний екран на комп\'ютері</label><select data-p="fs" data-k="bool"><option value="true"' + (t.fs !== false ? ' selected' : '') + '>Вимагати</option><option value="false"' + (t.fs === false ? ' selected' : '') + '>Не вимагати</option></select></div>' +
       '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Загальний час на роботу, хв (порожньо — сума часу питань)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Орієнтовна оцінка після здачі</label><select data-p="showGrade" data-k="bool"><option value="true"' + (t.showGrade !== false ? ' selected' : '') + '>Показувати учню</option><option value="false"' + (t.showGrade === false ? ' selected' : '') + '>Не показувати</option></select></div>' +
-      '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div></div>' +
+      '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div>' +
+      '<div><label class="f">Виходи зі сторінки: що бачить учень</label><select data-p="warn" data-k="bool"><option value="false"' + (t.warn !== true ? ' selected' : '') + '>Нічого (тільки записувати вам)</option><option value="true"' + (t.warn === true ? ' selected' : '') + '>Показувати попередження й перервати при перевищенні лімітів</option></select></div></div>' +
       (t.sheetName ? '<p class="help">Результати пишуться в аркуш Google Таблиці: «' + esc(t.sheetName) + '».</p>' : '<p class="help">Аркуш результатів створиться автоматично після першого збереження.</p>') + '</div>' +
       (t.sections.length ? t.sections.map((s, i) => secHtml(s, i, t)).join('') : '<div class="panel"><div class="empty">Додайте перший блок питань.</div></div>') +
       '<div class="panel"><h2>Додати блок питань</h2><div class="grid"><select id="newtype">' + Object.keys(TYPES).map(k => '<option value="' + k + '">' + esc(TYPES[k].name) + '</option>').join('') + '</select>' +
@@ -681,6 +723,11 @@
         else if (sec.type === 'short') good = 'Прийнятні: ' + (q.acc || []).join(', ');
         else if (sec.type === 'match') good = 'Правильно: ' + q.pairs.map(p => p[0] + ' → ' + p[1]).join('; ');
         else if (sec.type === 'label') good = 'Правильно: ' + q.marks.map((m, i) => (i + 1) + ') ' + m.a).join('; ');
+        else if (sec.type === 'order') good = 'Правильний порядок: ' + (q.items || []).join(' → ');
+        else if (sec.type === 'cloze') good = 'Правильно: ' + (String(q.text).match(/\[\[[^\]]+\]\]/g) || []).map((g, i) => (i + 1) + ') ' + g.slice(2, -2)).join('; ');
+        else if (sec.type === 'num') good = 'Правильно: ' + q.ans + (+q.tol ? ' ± ' + q.tol : '') + (q.unit ? ' ' + q.unit : '');
+        else if (sec.type === 'group') good = 'Правильно: ' + (q.items || []).map(it => it.t + ' → ' + (q.cats || [])[it.c]).join('; ');
+        else if (sec.type === 'find') good = 'Треба було виділити: ' + (String(q.passage).match(/\S*\*\S*/g) || []).map(x => x.replace(/\*/g, '')).join('; ');
       }
     }
     let pts = '';
@@ -800,6 +847,8 @@
       case 'dup-q': { const arr = t.sections[si].questions, c = JSON.parse(JSON.stringify(arr[qi])); if (c.id) c.id = uid(PREFIX[t.sections[si].type]); arr.splice(qi + 1, 0, c); break; }
       case 'add-opt': t.sections[si].questions[qi].o.push(''); break;
       case 'del-opt': { const q = t.sections[si].questions[qi]; q.o.splice(i, 1); if (q.c) q.c = q.c.filter(x => x !== i).map(x => x > i ? x - 1 : x); break; }
+      case 'add-gitem': t.sections[si].questions[qi].items.push({ t: '', c: 0 }); break;
+      case 'del-gitem': t.sections[si].questions[qi].items.splice(i, 1); break;
       case 'add-pair': t.sections[si].questions[qi].pairs.push(['', '']); break;
       case 'del-pair': t.sections[si].questions[qi].pairs.splice(i, 1); break;
       case 'add-concept': t.sections[si].questions[qi].concepts.push({ n: '', k: '' }); break;
