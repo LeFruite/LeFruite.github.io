@@ -51,6 +51,13 @@
   .rules td.n, .rules th.n { text-align: right; white-space: nowrap; }
   .rules ul { margin: 8px 0 0; padding-left: 20px; } .rules li { margin: 3px 0; }
   .rules .formula { background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 10px; padding: 9px 12px; margin-top: 10px; color: var(--accent-dark); font-weight: 600; }
+  .ord { list-style: none; margin: 0; padding: 0; } .ord li { display: flex; align-items: center; gap: 10px; background: #faf9f5; border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
+  .ord .num { font-weight: 800; color: var(--accent-dark); width: 22px; } .ord .otxt { flex: 1; }
+  .ord button { display: inline-block; width: auto; margin: 0; padding: 6px 12px; font-size: 16px; border-radius: 8px; }
+  .cloze { line-height: 2.4; font-size: 17px; } .cloze select { width: auto; display: inline-block; padding: 4px 8px; margin: 0 4px; font-size: 15px; }
+  .numrow { display: flex; align-items: center; gap: 10px; } .numrow input { max-width: 220px; } .numrow span { font-weight: 700; }
+  .find { font-size: 18px; line-height: 2.1; } .find .tok { display: inline-block; padding: 1px 6px; border-radius: 7px; border: 1.5px solid transparent; cursor: pointer; }
+  .find .tok:hover { background: #f2f0e8; } .find .tok.on { background: var(--accent-soft); border-color: var(--accent); font-weight: 700; }
   .rev-box { margin-top: 14px; } .rev-box summary { cursor: pointer; font-weight: 700; color: var(--accent-dark); }
   .rv-item { border: 1.5px solid var(--line); border-left-width: 6px; border-radius: 12px; padding: 10px 12px; margin: 10px 0; text-align: left; background: #fff; }
   .rv-item.full { border-left-color: var(--accent); } .rv-item.part { border-left-color: var(--amber); } .rv-item.zero { border-left-color: var(--warn); }
@@ -251,6 +258,19 @@
           const marks = (q.marks || []).map(m => ({ x: m.x, y: m.y, a: m.a }));
           const opts = shuffle(Array.from(new Set(marks.map(m => m.a).concat(q.extra || []).filter(Boolean))));
           out.push(Object.assign(common(q), base, { type: 'label', marks, options: opts }));
+        } else if (s.type === 'order') {
+          const correct = (q.items || []).map(x => String(x).trim()).filter(Boolean);
+          let ord = shuffle(correct), tries = 0; while (correct.length > 1 && ord.every((x, i) => x === correct[i]) && tries++ < 8) ord = shuffle(correct);
+          out.push(Object.assign(common(q), base, { type: 'order', correct, _ord: ord }));
+        } else if (s.type === 'cloze') {
+          const gaps = []; String(q.text || '').replace(/\[\[([^\]]+)\]\]/g, (_, a) => { gaps.push(a.trim()); return ''; });
+          out.push(Object.assign(common(q), base, { type: 'cloze', text: 'Заповніть пропуски:', passage: String(q.text || ''), gaps, bank: shuffle(Array.from(new Set(gaps.concat(q.extra || []).filter(Boolean)))) }));
+        } else if (s.type === 'num') {
+          out.push(Object.assign(common(q), base, { type: 'num', ans: parseFloat(String(q.ans).replace(',', '.')), tol: Math.abs(parseFloat(String(q.tol || 0).replace(',', '.')) || 0), unit: q.unit || '' }));
+        } else if (s.type === 'group') {
+          out.push(Object.assign(common(q), base, { type: 'group', cats: (q.cats || []).slice(), items: shuffle((q.items || []).filter(it => String(it.t || '').trim()).map(it => ({ t: it.t, c: +it.c || 0 }))) }));
+        } else if (s.type === 'find') {
+          out.push(Object.assign(common(q), base, { type: 'find', tokens: String(q.passage || '').split(/\s+/).filter(Boolean).map(w => ({ w: w.replace(/\*/g, ''), ok: w.indexOf('*') >= 0 })), _sel: [] }));
         } else if (s.type === 'tap') {
           out.push(Object.assign(common(q), base, { type: 'tap', targets: (q.targets || []).map(t => ({ x: t.x, y: t.y, r: t.r })) }));
         }
@@ -315,7 +335,7 @@
 
 
   /* ---------- Правила гри (екран входу) ---------- */
-  const TYPE_NAME = { mcq: 'Одна правильна відповідь', multi: 'Кілька правильних відповідей', tf: 'Так / Ні', match: 'Відповідність', short: 'Коротка відповідь', open: 'Розгорнута відповідь', label: 'Підпис до малюнка', tap: 'Знайди на малюнку' };
+  const TYPE_NAME = { mcq: 'Одна правильна відповідь', multi: 'Кілька правильних відповідей', tf: 'Так / Ні', match: 'Відповідність', short: 'Коротка відповідь', open: 'Розгорнута відповідь', label: 'Підпис до малюнка', tap: 'Знайди на малюнку', order: 'Розташуй у порядку', cloze: 'Заповни пропуски', num: 'Числова відповідь', group: 'Розподіл по групах', find: 'Знайди в тексті' };
   const r2 = x => Math.round(x * 100) / 100, num = x => String(r2(x)).replace('.', ',');
   const dur = sec => sec >= 60 ? Math.floor(sec / 60) + ' хв' + (sec % 60 ? ' ' + sec % 60 + ' с' : '') : sec + ' с';
   function rulesOfTest(t) {   // те саме, що робить сервер
@@ -493,7 +513,7 @@
   let pasteAttempts = 0, pasteWarnTimer = null;
   const lastVal = new WeakMap();
   const wordCount = s => s.split(/\s+/).filter(Boolean).length;
-  function warnPaste() { pasteAttempts++; const w = $('paste-warn'); w.classList.remove('hidden'); clearTimeout(pasteWarnTimer); pasteWarnTimer = setTimeout(() => w.classList.add('hidden'), 3000); }
+  function warnPaste() { pasteAttempts++; if (!loud()) return; const w = $('paste-warn'); w.classList.remove('hidden'); clearTimeout(pasteWarnTimer); pasteWarnTimer = setTimeout(() => w.classList.add('hidden'), 3000); }
   document.addEventListener('focusin', e => { if (/^(TEXTAREA|INPUT)$/.test(e.target.tagName)) lastVal.set(e.target, e.target.value); }, true);
   document.addEventListener('input', e => {
     const el = e.target; if (!/^(TEXTAREA|INPUT)$/.test(el.tagName) || el.type === 'radio' || el.type === 'checkbox') return;
@@ -554,9 +574,11 @@
     curLeave = { s: curSlot(), k: kind, d: 0 }; leaveLog.push(curLeave);
     saveState(); sendPartial();
   }
+  const loud = () => !!(TEST && TEST.warn === true);   // старий режим: показувати попередження й перервати при перевищенні
   function evalAway(secs) {
     awayTotal += secs;
     if (curLeave) curLeave.d = secs;
+    if (!loud()) { saveState(); return; }                // тихий режим: лише записуємо
     if (secs > MAX_AWAY_ONE || awayTotal > MAX_AWAY_TOTAL) { finishTest(true); return; }
     const where = curLeave && curLeave.s ? ' (питання ' + curLeave.s.slice(1) + ')' : '';
     $('warn-text').textContent = 'Вихід зі сторінки зафіксовано' + where + ': ' + (secs < 1 ? 'менше секунди' : secs + ' с') + '. Разом за роботу: ' + awayTotal + ' з ' + MAX_AWAY_TOTAL + ' с (одна відсутність — не довше ' + MAX_AWAY_ONE + ' с). Вчитель побачить, на яких питаннях це сталося.';
@@ -567,7 +589,7 @@
     if (PREVIEW || !isTestStarted || isSubmitted || awayStart === null || document.hidden || fsLost()) return;
     const secs = Math.round((Date.now() - awayStart) / 1000);
     awayStart = null;
-    if (secs > MAX_AWAY_ONE || awayTotal + secs > MAX_AWAY_TOTAL) {
+    if (loud() && (secs > MAX_AWAY_ONE || awayTotal + secs > MAX_AWAY_TOTAL)) {
       // перед покаранням перевіряємо, чи вчитель не поставив паузу (тривога)
       const go = () => { if (!paused && !isSubmitted) evalAway(secs); };
       getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(c => { applyCtrl(c); go(); }).catch(go);
@@ -577,7 +599,7 @@
     }
   }
   setInterval(() => {
-    if (PREVIEW || !isTestStarted || isSubmitted || paused || awayStart === null || checkingAway) return;
+    if (!loud() || PREVIEW || !isTestStarted || isSubmitted || paused || awayStart === null || checkingAway) return;
     const cur = (Date.now() - awayStart) / 1000;
     if (cur > MAX_AWAY_ONE || awayTotal + cur > MAX_AWAY_TOTAL) {
       checkingAway = true;
@@ -629,7 +651,7 @@
   document.addEventListener('fullscreenchange', () => {
     if (!isTestStarted || isSubmitted || PREVIEW) return;
     if (document.fullscreenElement) { fsOn = true; $('fs-overlay').classList.add('hidden'); onReturn(); }
-    else if (fsOn) { onLeave('fs'); $('fs-overlay').classList.remove('hidden'); }
+    else if (fsOn) { onLeave('fs'); if (loud()) $('fs-overlay').classList.remove('hidden'); }
   });
   $('fs-btn').addEventListener('click', enterFs);
   window.addEventListener('pagehide', () => { if (isTestStarted && !isSubmitted) { saveState(); sendPartial(true); } });
@@ -726,12 +748,26 @@
         q.marks.map((m, i) => '<span class="dot" data-i="' + i + '" style="left:' + (m.x * 100) + '%;top:' + (m.y * 100) + '%">' + (i + 1) + '</span>').join('') + '</div>';
       const opts = q.options.map((o, i) => '<option value="' + i + '">' + esc(o) + '</option>').join('');
       h += q.marks.map((m, i) => '<div class="pair"><span class="num">' + (i + 1) + '</span><select data-i="' + i + '"><option value="">— оберіть підпис —</option>' + opts + '</select></div>').join('');
+    } else if (q.type === 'order') {
+      h += '<ol class="ord" id="ord-list"></ol><div class="hint-small">Змініть порядок кнопками ▲ ▼.</div>';
+    } else if (q.type === 'cloze') {
+      const opts = q.bank.map((o, i) => '<option value="' + i + '">' + esc(o) + '</option>').join(''); let gi = 0;
+      h += '<div class="cloze">' + q.passage.split(/(\[\[[^\]]+\]\])/).map(seg => /^\[\[/.test(seg) ? '<select data-i="' + (gi++) + '"><option value="">…</option>' + opts + '</select>' : rich(seg)).join('') + '</div>';
+    } else if (q.type === 'num') {
+      h += '<div class="numrow"><input type="text" id="num-ans" inputmode="decimal" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Число" onpaste="return false;" oncopy="return false;" oncut="return false;" ondrop="return false;">' + (q.unit ? '<span>' + esc(q.unit) + '</span>' : '') + '</div>';
+    } else if (q.type === 'group') {
+      const opts = q.cats.map((c, i) => '<option value="' + i + '">' + esc(c) + '</option>').join('');
+      h += q.items.map((it, i) => '<div class="pair stack"><div class="left">' + esc(it.t) + '</div><select data-i="' + i + '"><option value="">— оберіть групу —</option>' + opts + '</select></div>').join('');
+    } else if (q.type === 'find') {
+      h += '<div class="find" id="find">' + q.tokens.map((t, i) => '<span class="tok' + ((q._sel || []).includes(i) ? ' on' : '') + '" data-i="' + i + '">' + esc(t.w) + '</span>').join(' ') + '</div><div class="hint-small">Торкайтеся слів, щоб виділити чи зняти виділення.</div>';
     } else if (q.type === 'tap') {
       h += '<div class="stage tap" id="stage"><img src="' + esc(q.img) + '" alt="" draggable="false"></div><div class="hint-small" id="tap-hint">Торкніться потрібного місця на малюнку. Можна змінити вибір, торкнувшись іншого місця.</div>';
     }
     $('question-container').innerHTML = h;
     if (q.type === 'label') wireLabel(q);
     if (q.type === 'tap') wireTap(q);
+    if (q.type === 'order') wireOrder(q);
+    if (q.type === 'find') wireFind(q);
 
     saveState();
     $('timer-box').classList.remove('low');
@@ -767,6 +803,26 @@
       sel.addEventListener('blur', () => dots[i].classList.remove('active'));
     });
     dots.forEach((d, i) => d.addEventListener('click', () => { sels[i].focus(); sels[i].scrollIntoView({ block: 'center', behavior: 'smooth' }); }));
+  }
+  function wireOrder(q) {
+    const ul = $('ord-list');
+    const draw = () => {
+      ul.innerHTML = q._ord.map((t, i) => '<li><span class="num">' + (i + 1) + '</span><span class="otxt">' + esc(t) + '</span><button type="button" data-d="-1" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button><button type="button" data-d="1" data-i="' + i + '"' + (i === q._ord.length - 1 ? ' disabled' : '') + '>▼</button></li>').join('');
+    };
+    draw();
+    ul.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b || b.disabled) return;
+      const i = +b.dataset.i, j = i + (+b.dataset.d); if (j < 0 || j >= q._ord.length) return;
+      [q._ord[i], q._ord[j]] = [q._ord[j], q._ord[i]]; draw(); saveState();
+    });
+  }
+  function wireFind(q) {
+    $('find').addEventListener('click', e => {
+      const t = e.target.closest('.tok'); if (!t) return;
+      const i = +t.dataset.i, k = (q._sel = q._sel || []).indexOf(i);
+      if (k >= 0) q._sel.splice(k, 1); else q._sel.push(i);
+      t.classList.toggle('on', k < 0); saveState();
+    });
   }
   function wireTap(q) {
     const stage = $('stage'), img = stage.querySelector('img');
@@ -831,6 +887,34 @@
         if (v && v === q.marks[i].a) earned += per;
       });
       shown = parts.join('; ');
+    } else if (q.type === 'order') {
+      const o = q._ord, c = q.correct; let ok = 0;
+      for (let i = 0; i < o.length - 1; i++) { const a = c.indexOf(o[i]); if (a >= 0 && a + 1 === c.indexOf(o[i + 1])) ok++; }
+      earned = q.points * (o.length > 1 ? ok / (o.length - 1) : 1); shown = o.join(' → ');
+    } else if (q.type === 'cloze') {
+      const per = q.points / (q.gaps.length || 1), parts = [];
+      box.querySelectorAll('select').forEach(sel => {
+        const i = +sel.dataset.i, v = sel.value === '' ? '' : q.bank[+sel.value];
+        parts.push((i + 1) + ')' + (v || '—'));
+        if (v && v === q.gaps[i]) earned += per;
+      });
+      shown = parts.join('; ');
+    } else if (q.type === 'num') {
+      const el = $('num-ans'); shown = el ? el.value.trim() : '';
+      const v = parseFloat(shown.replace(',', '.'));
+      if (!isNaN(v) && !isNaN(q.ans) && Math.abs(v - q.ans) <= q.tol + 1e-9) earned = q.points;
+    } else if (q.type === 'group') {
+      const per = q.points / (q.items.length || 1), parts = [];
+      box.querySelectorAll('select').forEach(sel => {
+        const i = +sel.dataset.i, c = sel.value === '' ? '' : q.cats[+sel.value];
+        parts.push(q.items[i].t + '→' + (c || '—'));
+        if (sel.value !== '' && +sel.value === q.items[i].c) earned += per;
+      });
+      shown = parts.join('; ');
+    } else if (q.type === 'find') {
+      const sel = q._sel || [], right = sel.filter(i => q.tokens[i].ok).length, total = q.tokens.filter(t => t.ok).length;
+      earned = total ? q.points * Math.max(0, (right - (sel.length - right)) / total) : 0;
+      shown = sel.slice().sort((a, b) => a - b).map(i => q.tokens[i].w).join('; ');
     } else if (q.type === 'tap') {
       if (q._tap) {
         const ar = q._ar || 0.75, W = 1, H = ar;
