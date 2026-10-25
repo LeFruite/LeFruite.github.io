@@ -10,8 +10,8 @@
 <script src="config.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1f7a5a">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Самостійні">
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
@@ -97,6 +97,9 @@
   .q { border: 1.5px solid var(--line-soft); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: #fbfcfc; }
   .q-h { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
   .q-n { font-weight: 800; color: var(--tc, var(--primary)); min-width: 24px; }
+  .aibadge { font-size: 12px; font-weight: 700; color: #6d4fd1; background: #efe9fb; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  .aipanel .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+  .aipanel .aist { margin-top: 10px; font-size: 14px; white-space: pre-line; }
   .q-sum { flex: 1; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .opt { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .opt input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ok); flex: none; }
@@ -352,7 +355,7 @@
   }
 
   function newTest() {
-    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 5, awayTotal: 15, fs: true, readTime: 8, totalTime: '', showGrade: true, review: false, warn: false, groups: [], sections: [] };
+    S.cur = { id: newTestId(), title: 'Нова робота', subject: 'Біологія', topic: '', awayOne: 5, awayTotal: 15, fs: true, readTime: 8, totalTime: 15, showGrade: true, review: false, warn: false, groups: [], sections: [] };
     S.dirty = true; showEdit();
   }
   async function openTest(id, then) {
@@ -484,11 +487,102 @@
       const sum = s.type === 'tf' ? q.t : q.text;
       const at = 'data-s="' + si + '" data-q="' + qi + '"';
       h += '<div class="q"><div class="q-h"><span class="q-n">' + (qi + 1) + '</span><span class="q-sum">' + esc(String(sum || '').slice(0, 90)) + '</span>' +
+        (q.ai ? '<span class="aibadge" title="Питання згенерував ШІ. Перевірте його, а потім натисніть ✓">🤖 ШІ' + (q.ai.src ? ', ' + esc(q.ai.src) : '') + ' — перевірте</span><button class="icon" data-act="ai-ok" ' + at + ' title="Перевірено">✓</button>' : '') +
         '<button class="icon" data-act="up-q" ' + at + '>↑</button><button class="icon" data-act="down-q" ' + at + '>↓</button>' +
         '<button class="icon" data-act="dup-q" ' + at + ' title="Копіювати">⧉</button><button class="icon x" data-act="del-q" ' + at + ' title="Видалити">✕</button></div>' + qBody(s, si, qi, q) + '</div>';
     });
     h += '<button class="btn ghost" data-act="add-q" data-s="' + si + '">+ Додати ' + (s.type === 'tf' ? 'твердження' : 'питання') + '</button></div></section>';
     return h;
+  }
+
+  /* ---------- генерація питань ШІ (Gemini через Apps Script) ---------- */
+  const AI_ROWS = [['mcq', 'Одна правильна', 5], ['multi', 'Кілька правильних', 2], ['match', 'Відповідність', 1], ['open', 'Розгорнута відповідь', 2], ['short', 'Коротка відповідь', 0], ['tf', 'Так / Ні (твердження)', 0]];
+  function aiPanel(t) {
+    return '<div class="panel aipanel"><h2>🤖 Згенерувати питання з файлу (ШІ)</h2>' +
+      '<p class="help">Завантажте PDF презентації чи уроку — ШІ запропонує питання. Усе потрапить у нові блоки з позначкою «ШІ — перевірте»: перегляньте й виправте перед видачею.</p>' +
+      '<div class="row"><div><label class="f">PDF-файл</label><input type="file" id="ai-file" accept="application/pdf,.pdf,text/plain,.txt"></div>' +
+      '<div><label class="f">Сторінки (порожньо — усі, макс. 40)</label><input type="text" id="ai-pages" placeholder="наприклад 3-12"></div>' +
+      '<div><label class="f">Клас</label><input type="text" id="ai-grade" value="' + esc((t.grade || '6')) + '"></div>' +
+      '<div><label class="f">Складність</label><select id="ai-level"><option value="easy">Простіше</option><option value="mid" selected>Середня</option><option value="hard">Складніше</option></select></div></div>' +
+      '<label class="f">…або вставте текст уроку замість файлу</label><textarea id="ai-text" rows="3" placeholder="Текст параграфа, конспект…"></textarea>' +
+      '<label class="f" style="margin-top:8px">Скільки питань кожного типу</label><div class="row">' +
+      AI_ROWS.map(r => '<div><label class="f">' + r[1] + '</label><input type="number" min="0" max="15" id="ai-n-' + r[0] + '" value="' + r[2] + '"></div>').join('') + '</div>' +
+      '<label class="f">Побажання (необов\'язково)</label><input type="text" id="ai-extra" placeholder="наприклад: більше про планети земної групи; без дат">' +
+      '<div style="margin-top:12px"><button class="btn" data-act="ai-gen" id="ai-go">✨ Згенерувати</button></div><div class="aist muted" id="ai-st"></div></div>';
+  }
+  function loadScript(src) {
+    return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('Не вдалося завантажити бібліотеку для читання PDF (перевірте інтернет)')); document.head.appendChild(el); });
+  }
+  async function pdfPages(file, range, say) {
+    if (!window.pdfjsLib) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const doc = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    let from = 1, to = doc.numPages;
+    const m = String(range || '').match(/^\s*(\d+)\s*(?:[-–]\s*(\d+))?\s*$/);
+    if (m) { from = Math.max(1, +m[1]); to = Math.min(doc.numPages, +(m[2] || m[1])); }
+    if (to < from) throw new Error('Некоректний діапазон сторінок');
+    to = Math.min(to, from + 39);
+    const n = to - from + 1, width = n <= 12 ? 1200 : n <= 24 ? 1000 : 800;
+    const images = []; let text = '';
+    for (let pn = from; pn <= to; pn++) {
+      say('Читаю сторінку ' + pn + ' (' + (pn - from + 1) + ' з ' + n + ')…');
+      const page = await doc.getPage(pn);
+      const vp0 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: width / vp0.width });
+      const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+      const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      images.push(cv.toDataURL('image/jpeg', 0.6).split(',')[1]);
+      const tc = await page.getTextContent();
+      text += '\n--- слайд/сторінка ' + pn + ' ---\n' + tc.items.map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    return { images, text, first: from };
+  }
+  async function aiRun() {
+    const t = S.cur, st = $('#ai-st'), go = $('#ai-go'), say = m => { st.textContent = m; };
+    const counts = {}; let total = 0;
+    AI_ROWS.forEach(r => { const v = Math.max(0, Math.min(15, parseInt($('#ai-n-' + r[0]).value, 10) || 0)); counts[r[0]] = v; total += v; });
+    if (!total) return say('Вкажіть, скільки питань потрібно хоча б одного типу.');
+    const file = $('#ai-file').files[0], pasted = $('#ai-text').value.trim();
+    if (!file && pasted.length < 200) return say('Оберіть PDF-файл або вставте текст уроку (хоча б кілька речень).');
+    go.disabled = true;
+    try {
+      let imgs = [], text = pasted, first = 1;
+      if (file && /\.txt$|text\/plain/.test(file.name + file.type)) text = (await file.text()) + '\n' + pasted;
+      else if (file) { const r = await pdfPages(file, $('#ai-pages').value, say); imgs = r.images; text = r.text + '\n' + pasted; first = r.first; }
+      const mb = imgs.reduce((a, x) => a + x.length, 0) / 1048576;
+      say('Надсилаю ШІ' + (imgs.length ? ' (' + imgs.length + ' стор., ' + mb.toFixed(1) + ' МБ)' : '') + '… Це може тривати до 1–2 хвилин, не закривайте сторінку.');
+      const spec = { counts, level: $('#ai-level').value, grade: $('#ai-grade').value.trim(), subject: t.subject || '', extra: $('#ai-extra').value.trim(), firstPage: first };
+      const r = await api('t_ai_gen', { spec: JSON.stringify(spec), text, images: JSON.stringify(imgs) });
+      const added = aiInsert(t, r.data);
+      markDirty(); showEdit();
+      toast('Додано питань: ' + added + '. Перегляньте їх і натисніть ✓ біля кожного. Не забудьте зберегти.');
+    } catch (e) { if (e.message !== 'pin') say('Помилка: ' + e.message); }
+    finally { const g = $('#ai-go'); if (g) g.disabled = false; }
+  }
+  function aiInsert(t, data) {
+    let added = 0;
+    AI_ROWS.forEach(([type]) => {
+      const list = data[type] || []; if (!list.length) return;
+      const sec = Object.assign({ type, questions: [] }, JSON.parse(JSON.stringify(TYPES[type].def)));
+      t.sections.push(sec);
+      list.forEach(x => {
+        const ai = { src: x.src || '' };
+        let q;
+        if (type === 'tf') q = { t: x.t, c: !!x.c, ai };
+        else {
+          q = { id: uid(PREFIX[type]), text: x.text, ai };
+          if (type === 'mcq') q.o = x.o;
+          else if (type === 'multi') { q.o = x.o; q.c = x.c; }
+          else if (type === 'match') q.pairs = x.pairs;
+          else if (type === 'short') q.acc = x.acc;
+          else if (type === 'open') { q.max = x.max || 2; q.concepts = x.concepts; }
+        }
+        sec.questions.push(q); added++;
+      });
+      if (type === 'tf') { sec.count = Math.min(4, sec.questions.length); sec.n = Math.max(1, Math.floor(sec.questions.length / sec.count)); }
+      else sec.n = sec.questions.length;
+    });
+    return added;
   }
 
   function showEdit() {
@@ -506,14 +600,14 @@
       '<div><label class="f">Усього поза сторінкою, с (лише з попередженнями)</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Повний екран на комп\'ютері</label><select data-p="fs" data-k="bool"><option value="true"' + (t.fs !== false ? ' selected' : '') + '>Вимагати</option><option value="false"' + (t.fs === false ? ' selected' : '') + '>Не вимагати</option></select></div>' +
       '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Загальний час на роботу, хв (порожньо — сума часу питань)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Час на всю роботу після «Відкрити доступ», хв (порожньо — 15)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Орієнтовна оцінка після здачі</label><select data-p="showGrade" data-k="bool"><option value="true"' + (t.showGrade !== false ? ' selected' : '') + '>Показувати учню</option><option value="false"' + (t.showGrade === false ? ' selected' : '') + '>Не показувати</option></select></div>' +
       '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div>' +
       '<div><label class="f">Виходи зі сторінки: що бачить учень</label><select data-p="warn" data-k="bool"><option value="false"' + (t.warn !== true ? ' selected' : '') + '>Нічого (тільки записувати вам)</option><option value="true"' + (t.warn === true ? ' selected' : '') + '>Показувати попередження й перервати при перевищенні лімітів</option></select></div></div>' +
       (t.sheetName ? '<p class="help">Результати пишуться в аркуш Google Таблиці: «' + esc(t.sheetName) + '».</p>' : '<p class="help">Аркуш результатів створиться автоматично після першого збереження.</p>') + '</div>' +
       (t.sections.length ? t.sections.map((s, i) => secHtml(s, i, t)).join('') : '<div class="panel"><div class="empty">Додайте перший блок питань.</div></div>') +
       '<div class="panel"><h2>Додати блок питань</h2><div class="grid"><select id="newtype">' + Object.keys(TYPES).map(k => '<option value="' + k + '">' + esc(TYPES[k].name) + '</option>').join('') + '</select>' +
-      '<button class="btn" data-act="add-s">+ Додати блок</button></div></div></div>' +
+      '<button class="btn" data-act="add-s">+ Додати блок</button></div></div>' + aiPanel(t) + '</div>' +
       '<div class="sumbar"><div class="sumbar-in" id="sumbar">' + sumHtml(sm) + '</div></div>';
     mountAll();
   }
@@ -607,7 +701,7 @@
       '<p class="help">Список учнів береться з аркушів «Журнал N клас» у Google Таблиці (колонки «Учень» і «Група»). Учні з порожньою групою в списку не з\'являться.</p></div>' +
       '<div class="panel" id="linkpanel"></div>' +
       '<div class="panel"><h2>Керування</h2><div class="muted" id="ctlstate">…</div><div class="ctl">' +
-      '<button class="btn ok" data-act="ctl" data-k="open">▶ Почати / продовжити</button><button class="btn warn" data-act="ctl" data-k="pause">⏸ Пауза (тривога)</button>' +
+      '<button class="btn ok" data-act="ctl" data-k="open">▶ Відкрити доступ (запустити таймер)</button><button class="btn ghost" data-act="ctl" data-k="extend">+5 хв до таймера</button><button class="btn warn" data-act="ctl" data-k="pause">⏸ Пауза (тривога)</button>' +
       '<button class="btn danger" data-act="ctl" data-k="close">⏹ Перервати роботу</button><button class="btn ghost" data-act="ctl" data-k="reset">🔄 Нова спроба для всіх</button></div></div>' +
       '<div class="panel"><h2>Хід роботи</h2><div id="mon" class="muted">Завантаження…</div></div></div>';
     try { S.roster = (await api('t_roster')).groups; } catch (e) { if (e.message !== 'pin') toast(e.message, true); S.roster = {}; }
@@ -637,7 +731,7 @@
   }
   function drawMon(r) {
     const c = r.ctrl, el = $('#ctlstate'); if (!el) return;
-    el.innerHTML = 'Стан: <span class="state ' + c.state + '">' + STATE_TXT[c.state] + '</span> · спроба №' + c.round;
+    el.innerHTML = 'Стан: <span class="state ' + c.state + '">' + STATE_TXT[c.state] + '</span> · спроба №' + c.round + (typeof c.left === 'number' ? ' · таймер: ' + (c.left > 0 ? Math.floor(c.left / 60000) + ':' + String(Math.floor(c.left / 1000) % 60).padStart(2, '0') + (c.state === 'paused' ? ' (пауза)' : '') : 'час вийшов') : '');
     const rows = r.rows.slice().sort((a, b) => String(a.cls).localeCompare(b.cls, 'uk', { numeric: true }) || a.name.localeCompare(b.name, 'uk'));
     const fin = rows.filter(x => /^(Завершено|Перервано)/.test(x.status)).length, prog = rows.length - fin;
     $('#mon').innerHTML = '<div class="counters"><div><b>' + rows.length + '</b>розпочали</div><div><b>' + fin + '</b>завершили</div><div><b>' + prog + '</b>пишуть / вийшли</div></div>' +
@@ -844,6 +938,8 @@
         { const w = window.open('index.html?preview=' + encodeURIComponent(t.id), '_blank'); if (w) S.prevWins.push(w); else toast('Браузер заблокував нову вкладку — дозвольте спливні вікна для цієї сторінки', true); }
         return;
       /* структура */
+      case 'ai-ok': delete t.sections[si].questions[qi].ai; break;
+      case 'ai-gen': return void (await aiRun());
       case 'add-s': { const type = $('#newtype').value; t.sections.push(Object.assign({ type, questions: [newQ(type)] }, JSON.parse(JSON.stringify(TYPES[type].def)))); break; }
       case 'del-s': if (!confirm('Видалити блок разом із усіма його питаннями?')) return; t.sections.splice(si, 1); break;
       case 'up-s': if (!move(t.sections, si, -1)) return; break;
@@ -874,8 +970,8 @@
         const k = b.dataset.k;
         if (!t.groups.length || S.dirty) return toast('Спершу оберіть і збережіть групи', true);
         if (k === 'close' && !confirm('Перервати роботу в усіх учнів просто зараз?')) return;
-        if (k === 'reset' && !confirm('Дозволити всім пройти ще раз? Поточні роботи буде перервано; потім натисніть «Почати».')) return;
-        try { await api('t_ctrl', { id: t.id, kind: k }); toast({ open: 'Роботу відкрито', pause: 'Пауза для всіх', close: 'Роботу перервано', reset: 'Нова спроба. Натисніть «Почати».' }[k]); refreshMon(); }
+        if (k === 'reset' && !confirm('Дозволити всім пройти ще раз? Поточні роботи буде перервано; потім натисніть «Відкрити доступ».')) return;
+        try { await api('t_ctrl', { id: t.id, kind: k, min: 5 }); toast({ extend: 'Додано 5 хвилин', open: 'Доступ відкрито, таймер запущено', pause: 'Пауза для всіх', close: 'Роботу перервано', reset: 'Нова спроба. Натисніть «Відкрити доступ».' }[k]); refreshMon(); }
         catch (er) { if (er.message !== 'pin') toast(er.message, true); }
         return;
       }
