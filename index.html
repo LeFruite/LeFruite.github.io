@@ -49,6 +49,17 @@
   .rules th, .rules td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
   .rules th { color: var(--muted); font-weight: 700; font-size: 12px; }
   .rules td.n, .rules th.n { text-align: right; white-space: nowrap; }
+  .rules { overflow-wrap: anywhere; }
+  @media (max-width: 560px) {
+    .rules table, .rules tbody, .rules tr, .rules td { display: block; width: 100%; }
+    .rules tr.hd { display: none; }
+    .rules tr { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 8px 0; background: #fff; }
+    .rules td { border: 0; padding: 2px 0; }
+    .rules td:first-child { font-weight: 700; padding-bottom: 4px; }
+    .rules td.n { display: flex; justify-content: space-between; gap: 12px; white-space: normal; }
+    .rules td.n::before { content: attr(data-l); color: var(--muted); font-weight: 500; }
+  }
+  .read-note.idle { visibility: hidden; }
   .rules ul { margin: 8px 0 0; padding-left: 20px; } .rules li { margin: 3px 0; }
   .rules .formula { background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 10px; padding: 9px 12px; margin-top: 10px; color: var(--accent-dark); font-weight: 600; }
   .ord { list-style: none; margin: 0; padding: 0; } .ord li { display: flex; align-items: center; gap: 10px; background: #faf9f5; border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
@@ -150,7 +161,7 @@
   <div id="quiz-screen" class="hidden">
     <div class="topbar">
       <div class="progress" id="progress"></div>
-      <div class="timer-box total" id="total-box" title="Загальний час на всю роботу">Загалом <span id="total">--:--</span></div>
+      <div class="timer-box total hidden" id="total-box" title="Спільний час на роботу для всього класу">Залишилось <span id="total">--:--</span></div>
       <div class="timer-box" id="timer-box"><span id="timer">--</span> с</div>
     </div>
     <div id="read-note" class="read-note hidden" aria-live="polite"></div>
@@ -287,7 +298,7 @@
   let isSubmitted = false, isTestStarted = false, leaves = 0;
   let awayStart = null, awayTotal = 0, paused = false, checkingAway = false, resumeLeft = null;
   let leaveLog = [], qTime = {}, qStartTs = 0, curLeave = null, fsOn = false;
-  let totalLeft = 0, totalTimer = null, lastTick = 0, reading = false, readLeft = 0;
+  let deadlineAt = 0, frozenLeft = null, totalTimer = null, reading = false, readLeft = 0;
   let myRound = null, myStop = null, starting = false;
 
   /* ---------- Сервер ---------- */
@@ -347,17 +358,17 @@
       secs.push({ type: s.type, n, count: s.type === 'tf' ? Math.min(+s.count || 4, qs.length) : 0, time, per: r2(per), sum: r2(n * per) });
       total += n * per; secTime += n * (time + rt);
     });
-    return { sections: secs, max: r2(total), readTime: rt, totalMin: +t.totalTime > 0 ? +t.totalTime : Math.ceil(secTime / 60), showGrade: t.showGrade !== false, review: t.review === true };
+    return { sections: secs, max: r2(total), readTime: rt, totalMin: +t.totalTime > 0 ? +t.totalTime : 15, showGrade: t.showGrade !== false, review: t.review === true };
   }
   function renderRules(R) {
     const box = $('rules-box');
     if (!R || !R.sections || !R.sections.length) { box.classList.add('hidden'); return; }
     const cnt = R.sections.reduce((a, s) => a + s.n, 0), hasOpen = R.sections.some(s => s.type === 'open');
-    let h = '<h3>Правила гри</h3><div>Питань: <b>' + cnt + '</b> · максимум балів: <b>' + num(R.max) + '</b> · на всю роботу: <b>' + R.totalMin + ' хв</b></div>';
-    h += '<table><tr><th>Категорія</th><th class="n">Питань</th><th class="n">Час на питання</th><th class="n">Балів за питання</th><th class="n">Усього</th></tr>' +
-      R.sections.map(s => '<tr><td>' + esc(TYPE_NAME[s.type] || s.type) + (s.type === 'tf' ? '<br><span class="hint">у кожному ' + s.count + ' тверджень</span>' : '') + '</td><td class="n">' + s.n + '</td><td class="n">' + dur(s.time) + '</td><td class="n">' + (s.type === 'open' ? 'до ' : '') + num(s.per) + '</td><td class="n"><b>' + num(s.sum) + '</b></td></tr>').join('') + '</table>';
+    let h = '<h3>Правила гри</h3><div>Питань: <b>' + cnt + '</b> · максимум балів: <b>' + num(R.max) + '</b> · час на всю роботу: <b>' + R.totalMin + ' хв</b></div>';
+    h += '<table><tr class="hd"><th>Категорія</th><th class="n">Питань</th><th class="n">Час на питання</th><th class="n">Балів за питання</th><th class="n">Усього</th></tr>' +
+      R.sections.map(s => '<tr><td>' + esc(TYPE_NAME[s.type] || s.type) + (s.type === 'tf' ? '<br><span class="hint">у кожному ' + s.count + ' тверджень</span>' : '') + '</td><td class="n" data-l="Питань">' + s.n + '</td><td class="n" data-l="Час на питання">' + dur(s.time) + '</td><td class="n" data-l="Балів за питання">' + (s.type === 'open' ? 'до ' : '') + num(s.per) + '</td><td class="n" data-l="Усього"><b>' + num(s.sum) + '</b></td></tr>').join('') + '</table>';
     h += '<ul>' + (R.readTime > 0 ? '<li>Перед кожним питанням є <b>' + R.readTime + ' с на прочитання</b>: відлік часу ще не йде, кнопка «Наступне питання» вимкнена.</li>' : '') +
-      '<li>Коли час питання вийде, воно закривається автоматично. Загальний таймер зупиняє роботу, коли вичерпано <b>' + R.totalMin + ' хв</b>.</li>' +
+      '<li>Коли час питання вийде, воно закривається автоматично. Час на всю роботу — <b>' + R.totalMin + ' хв</b>, спільний для всього класу: він запускається, коли вчитель відкриває доступ, тож хто почав пізніше, має менше часу. Коли він вийде, робота завершиться сама.</li>' +
       '<li>Повернутися до попереднього питання не можна. Вихід зі сторінки фіксується.</li>' +
       (hasOpen ? '<li>Розгорнуті відповіді оцінюються за наявністю ключових понять, а вчитель може скоригувати оцінку.</li>' : '') + '</ul>';
     h += '<div class="formula">Оцінка (1–12) = 12 × набрані бали ÷ ' + num(R.max) + ', округлено до цілого, але не менше 1.<br><span style="font-weight:500">Наприклад, ' + num(r2(R.max * 0.75)) + ' балів із ' + num(R.max) + ' дають ' + Math.max(1, Math.round(12 * 0.75)) + '.</span></div>';
@@ -474,6 +485,7 @@
   function schedulePoll() { setTimeout(() => { pollCtrl().then(schedulePoll); }, Math.min(20000, (5000 + Math.random() * 1500) * (1 + pollFails))); }
   function applyCtrl(c) {
     if (isSubmitted || !c || typeof c.state !== 'string' || typeof c.stopSeq !== 'number') return;   // помилкова/пошкоджена відповідь сервера не повинна нікого зупиняти
+    syncDeadline(c);
     if (isTestStarted) {
       if (c.state === 'closed' || c.stopSeq > myStop) { setPaused(false); finishTest(true, true); return; }
       setPaused(c.state === 'paused');
@@ -489,12 +501,13 @@
     if (st) clearState();
     rb.classList.add('hidden');
     const blocked = !PREVIEW && done === String(c.round);
-    const open = c.state === 'open';
+    const timeUp = typeof c.left === 'number' && c.left <= 0;
+    const open = c.state === 'open' && !timeUp;
     $('device-blocked-msg').classList.toggle('hidden', !blocked);
     $('form-container').classList.toggle('hidden', blocked);
     const w = $('wait-msg');
     w.classList.toggle('hidden', blocked || open);
-    w.textContent = c.state === 'paused'
+    w.textContent = timeUp ? 'Час на цю роботу вийшов.' : c.state === 'paused'
       ? 'Роботу призупинено вчителем. Зачекайте — кнопка «Розпочати» стане активною автоматично.'
       : 'Вчитель ще не розпочав роботу. Зачекайте — кнопка «Розпочати» стане активною автоматично.';
     if (!starting) $('start-btn').disabled = !open;
@@ -533,7 +546,7 @@
   /* ---------- Збереження стану (продовження після закриття сторінки) ---------- */
   function saveState() {
     if (PREVIEW || !isTestStarted || isSubmitted) return;
-    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, totalLeft, savedAt: Date.now(), leaveLog, qTime, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL] })); } catch (e) {}
+    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, savedAt: Date.now(), leaveLog, qTime, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL] })); } catch (e) {}
   }
   function clearState() { try { localStorage.removeItem(ST_KEY); } catch (e) {} }
   function loadState() { if (PREVIEW) return null; try { return JSON.parse(localStorage.getItem(ST_KEY) || 'null'); } catch (e) { return null; } }
@@ -541,7 +554,6 @@
     questions = st.questions; currentQ = st.currentQ; answers = st.answers; testScore = st.testScore;
     leaves = (st.leaves || 0) + 1; pasteAttempts = st.pastes || 0; awayTotal = st.awayTotal || 0;
     leaveLog = st.leaveLog || []; qTime = st.qTime || {};
-    totalLeft = typeof st.totalLeft === 'number' ? Math.max(1, st.totalLeft - (Date.now() - (st.savedAt || Date.now())) / 1000) : totalSeconds_(st.questions);
     leaveLog.push({ s: (st.questions[st.currentQ] || {}).slot || '', k: 'resume', d: 0 });
     className = st.className; studentName = st.studentName; myRound = st.round; myStop = st.stop;
     MAX_AUTO = questions.reduce((s, q) => s + q.points, 0); resumeLeft = st.timeLeft; isTestStarted = true;
@@ -668,7 +680,7 @@
     isTestStarted = true; fsOn = !!document.fullscreenElement && wantFs();
     if (document.fullscreenElement && !wantFs()) { try { document.exitFullscreen(); } catch (e) {} }
     $('start-screen').classList.add('hidden'); $('quiz-screen').classList.remove('hidden');
-    totalLeft = totalSeconds_(questions); startTotal();
+    startTotal();
     loadQuestion();
   }
   function startTest() {
@@ -683,6 +695,7 @@
         const done = () => { alert('Увага! Цей учень уже розпочинав або склав цю роботу. Зверніться до вчителя.'); resetStartBtn(); };
         if (INFO.rules && INFO.rules.review) openReview(className, studentName, true).then(ok => { if (!ok) done(); }); else done();
       }
+      else if (status === 'TIME_UP') { alert('Час на цю роботу вийшов.'); resetStartBtn(); }
       else if (status === 'NOT_OPEN') { alert('Вчитель ще не розпочав роботу (або її зупинено). Зачекайте.'); resetStartBtn(); }
       else if (status === 'NOT_ASSIGNED' || status === 'NO_TEST') { alert('Ця робота не призначена для вашої групи.'); resetStartBtn(); }
       else if (status.indexOf('OK_STARTED') === 0) {
@@ -699,21 +712,22 @@
   /* ---------- Відображення питань ---------- */
   /* ---------- Час на прочитання та загальний таймер ---------- */
   const readSecs = () => { const r = TEST && TEST.readTime != null && TEST.readTime !== '' ? +TEST.readTime : 8; return r > 0 ? Math.round(r) : 0; };
-  function totalSeconds_(qs) {
-    const t = TEST && +TEST.totalTime > 0 ? +TEST.totalTime * 60 : 0;
-    return t || qs.reduce((a, q) => a + q.time + readSecs(), 0);
-  }
   const fmt = sec => { sec = Math.max(0, Math.ceil(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
-  function startTotal() {
-    clearInterval(totalTimer); lastTick = Date.now(); $('total').textContent = fmt(totalLeft);
-    totalTimer = setInterval(() => {
-      const now = Date.now(), dt = (now - lastTick) / 1000; lastTick = now;
-      if (paused || isSubmitted) return;                         // на паузі (тривога) загальний час теж стоїть
-      totalLeft -= dt; $('total').textContent = fmt(totalLeft);
-      $('total-box').classList.toggle('low', totalLeft <= 60);
-      if (totalLeft <= 0 && !PREVIEW) finishTest(true, false, 'time');
-    }, 1000);
+  // спільний таймер: кінець часу задає сервер у момент, коли вчитель натиснув «Відкрити доступ»
+  function syncDeadline(c) {
+    if (!c || typeof c.left !== 'number') { deadlineAt = 0; frozenLeft = null; return; }
+    if (c.state === 'paused') { frozenLeft = c.left; deadlineAt = 0; } else { frozenLeft = null; deadlineAt = Date.now() + c.left; }
+    if (isTestStarted) tickTotal();
   }
+  const leftSecs = () => frozenLeft !== null ? frozenLeft / 1000 : (deadlineAt ? (deadlineAt - Date.now()) / 1000 : null);
+  function tickTotal() {
+    const box = $('total-box'), l = leftSecs();
+    if (l === null || PREVIEW) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden'); $('total').textContent = fmt(l);
+    box.classList.toggle('low', l <= 60);
+    if (l <= 0 && !paused && !isSubmitted) finishTest(true, false, 'time');
+  }
+  function startTotal() { clearInterval(totalTimer); tickTotal(); totalTimer = setInterval(tickTotal, 500); }
   function loadQuestion() {
     clearInterval(timerInterval);
     const q = questions[currentQ];
@@ -773,7 +787,7 @@
     $('timer-box').classList.remove('low');
     const nb = $('next-btn'), note = $('read-note');
     const startCount = () => {
-      reading = false; nb.disabled = false; note.classList.add('hidden');
+      reading = false; nb.disabled = false; if (readSecs() > 0) note.classList.add('idle'); else note.classList.add('hidden');
       timerInterval = setInterval(() => {
         if (paused) return;
         timeLeft--; saveState();
@@ -786,7 +800,7 @@
     if (rd > 0) {   // спершу час на прочитання: відлік питання ще не йде, кнопка «Далі» вимкнена
       reading = true; nb.disabled = true; readLeft = rd;
       const show = () => { note.textContent = 'Прочитайте питання. Відлік часу почнеться через ' + readLeft + ' с'; };
-      note.classList.remove('hidden'); show();
+      note.classList.remove('hidden', 'idle'); show();
       timerInterval = setInterval(() => {
         if (paused) return;
         readLeft--;
@@ -975,7 +989,7 @@
     box.classList.remove('hidden');
   }
   function finishTest(forced, byTeacher, reason) {
-    clearInterval(timerInterval); clearInterval(totalTimer); reading = false; $('read-note').classList.add('hidden');
+    clearInterval(timerInterval); clearInterval(totalTimer); reading = false; $('read-note').classList.add('hidden'); $('total-box').classList.add('hidden');
     $('warn-overlay').classList.add('hidden'); $('quiz-screen').classList.add('hidden'); $('start-screen').classList.add('hidden'); $('pause-overlay').classList.add('hidden');
     $('end-screen').classList.remove('hidden');
     if (forced) $('end-msg').textContent = reason === 'time' ? 'Загальний час роботи вичерпано. Ваші відповіді буде надіслано вчителю.' : byTeacher
