@@ -335,7 +335,7 @@
 
   async function showList() {
     stopMon(); S.view = 'list'; S.cur = null; S.dirty = false;
-    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
+    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="students.html" style="text-decoration:none;display:inline-block">Списки груп</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
       '<div class="wrap"><h1>Роботи</h1><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
     $('#new').onclick = newTest; $('#imp').onclick = () => $('#importpick').click();
     try {
