@@ -335,7 +335,7 @@
 
   async function showList() {
     stopMon(); S.view = 'list'; S.cur = null; S.dirty = false;
-    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="students.html" style="text-decoration:none;display:inline-block">Списки груп</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
+    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="journal.html" style="text-decoration:none;display:inline-block">Журнал оцінок</a><a class="btn ghost" href="students.html" style="text-decoration:none;display:inline-block">Списки груп</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
       '<div class="wrap"><h1>Роботи</h1><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
     $('#new').onclick = newTest; $('#imp').onclick = () => $('#importpick').click();
     try {
@@ -600,7 +600,8 @@
       '<div><label class="f">Усього поза сторінкою, с (лише з попередженнями)</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Повний екран на комп\'ютері</label><select data-p="fs" data-k="bool"><option value="true"' + (t.fs !== false ? ' selected' : '') + '>Вимагати</option><option value="false"' + (t.fs === false ? ' selected' : '') + '>Не вимагати</option></select></div>' +
       '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Час на всю роботу після «Відкрити доступ», хв (порожньо — 15)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Спільний таймер на роботу</label><select data-p="noTimer" data-k="bool"><option value="false"' + (t.noTimer !== true ? ' selected' : '') + '>Є (запускається при «Відкрити доступ»)</option><option value="true"' + (t.noTimer === true ? ' selected' : '') + '>Немає (лише час на питання)</option></select></div>' +
+      '<div><label class="f">Час на всю роботу, хв (якщо таймер є; порожньо — 15)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Орієнтовна оцінка після здачі</label><select data-p="showGrade" data-k="bool"><option value="true"' + (t.showGrade !== false ? ' selected' : '') + '>Показувати учню</option><option value="false"' + (t.showGrade === false ? ' selected' : '') + '>Не показувати</option></select></div>' +
       '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div>' +
       '<div><label class="f">Виходи зі сторінки: що бачить учень</label><select data-p="warn" data-k="bool"><option value="false"' + (t.warn !== true ? ' selected' : '') + '>Нічого (тільки записувати вам)</option><option value="true"' + (t.warn === true ? ' selected' : '') + '>Показувати попередження й перервати при перевищенні лімітів</option></select></div></div>' +
@@ -779,9 +780,9 @@
       '<div class="gradebox" style="align-items:center"><div style="flex:1 1 260px"><b>Занести в журнал</b><div class="muted" style="font-size:13px">Оцінки потрапляють у журнал лише за цією кнопкою. Якщо ви виставили оцінку вручну — заноситься вона, інакше автоматична.</div></div>' +
       '<label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-over"' + (S.rf.overwrite ? ' checked' : '') + '> перезаписати наявні</label>' +
       '<button class="btn" data-act="res-journal-all"' + (fin.length ? '' : ' disabled') + '>Занести завершені (' + fin.length + ')</button></div>' +
-      (rows.length ? '<div style="overflow:auto"><table class="mon"><tr><th>Група</th><th>Учень</th><th>Статус</th><th>Бали</th><th>Оцінка авто</th><th>Оцінка вчителя</th></tr>' +
+      (rows.length ? '<div style="overflow:auto"><table class="mon"><tr><th>Група</th><th>Учень</th><th>Статус</th><th>Бали</th><th>Оцінка авто</th><th>Оцінка вчителя</th><th></th></tr>' +
         rows.map((r, i) => { const k = /^Завершено/.test(r.status) ? 'done' : (/^Перервано|^Вийшов/.test(r.status) ? 'bad' : 'prog'), ag = autoGrade(r);
-          return '<tr class="clk" data-act="rd-open" data-i="' + i + '"><td>' + esc(r.cls) + '</td><td>' + esc(r.name) + '</td><td><span class="st ' + k + '">' + esc(r.status) + '</span></td><td>' + esc(r.total) + (r.total !== '' ? ' / ' + S.res.max : '') + '</td><td>' + (ag !== '' ? '<span class="gtag a">' + ag + '</span>' : '—') + '</td><td>' + (r.final !== '' ? '<span class="gtag t">' + esc(r.final) + '</span>' : '—') + '</td></tr>'; }).join('') + '</table></div>'
+          return '<tr class="clk" data-act="rd-open" data-i="' + i + '"><td>' + esc(r.cls) + '</td><td>' + esc(r.name) + '</td><td><span class="st ' + k + '">' + esc(r.status) + '</span></td><td>' + esc(r.total) + (r.total !== '' ? ' / ' + S.res.max : '') + '</td><td>' + (ag !== '' ? '<span class="gtag a">' + ag + '</span>' : '—') + '</td><td>' + (r.final !== '' ? '<span class="gtag t">' + esc(r.final) + '</span>' : '—') + '</td><td><button class="icon x" data-act="rd-del" data-i="' + i + '" title="Видалити роботу">🗑</button></td></tr>'; }).join('') + '</table></div>'
         : '<div class="empty">У цій спробі ще немає робіт.</div>');
     $('#f-round').onchange = e => { S.rf.round = +e.target.value; drawResults(); };
     $('#f-group').onchange = e => { S.rf.group = e.target.value; drawResults(); };
@@ -848,7 +849,7 @@
     const keepScroll = host.scrollTop;
     host.className = 'rd-back';
     host.innerHTML = '<div class="rd-panel"><div class="rd-h"><div class="ttl">' + esc(r.name) + '<div class="muted" style="font-size:14px;font-weight:500">' + esc(r.cls) + ' · ' + esc(r.status) + ' · ' + esc(r.time) + '</div></div>' +
-      '<button class="icon" data-act="rd-prev" title="Попередній">←</button><button class="icon" data-act="rd-next" title="Наступний">→</button><button class="icon x" data-act="rd-close" title="Закрити">✕</button></div>' +
+      '<button class="icon" data-act="rd-prev" title="Попередній">←</button><button class="icon" data-act="rd-next" title="Наступний">→</button><button class="icon x" data-act="rd-del" data-i="' + S.rd + '" title="Видалити цю роботу">🗑</button><button class="icon x" data-act="rd-close" title="Закрити">✕</button></div>' +
       '<div class="muted" style="font-size:14px">Автобал: <b>' + esc(r.auto) + '</b> · відкриті (авто): <b>' + esc(r.open) + '</b> · разом: <b>' + esc(r.total) + (S.res.max ? ' з ' + S.res.max : '') + '</b> · виходів: ' + esc(r.leaves) + ' (' + esc(r.away || 0) + ' с) · спроб вставки: ' + esc(r.pastes || 0) + '</div>' + (function () { const L = leaveList(r).filter(e => e.k !== 'resume'), out = L.filter(e => !e.s); return L.length ? '<div style="color:#b42318;font-size:13.5px;margin-top:6px">⚠ Виходи за питаннями: ' + L.filter(e => e.s).map(e => esc(e.s.slice(1)) + ' (' + esc(leaveTxt(e)) + ')').join('; ') + (out.length ? (L.length > out.length ? '; ' : '') + 'поза питаннями: ' + out.length : '') + '</div>' : ''; })() +
       '<div class="gradebox"><div><label class="f">Фінальна оцінка (1–12)</label><input type="number" id="rd-grade" min="1" max="12" step="1" value="' + esc(cur) + '"></div>' +
       '<div class="muted" style="font-size:13px;flex:1 1 140px">Автоматична оцінка: <b>' + (ag !== '' ? ag : '—') + '</b>' + (r.final !== '' ? '<br>Ваша оцінка: <b>' + esc(r.final) + '</b>' : '') + '</div>' +
@@ -894,6 +895,12 @@
       case 'res-cur': return showResults(false);
       case 'res-refresh': return loadResults();
       case 'rd-open': S.rd = i; return drawDetail();
+      case 'rd-del': {
+        const r = filtered()[i]; if (!r) return;
+        if (!confirm('Видалити роботу учня «' + r.name + '» (' + r.cls + ') повністю? Рядок зникне з таблиці результатів, учень зможе написати її знову. Оцінку, яку вже занесено в журнал, це не змінює.')) return;
+        try { await api('t_res_del', { id: S.cur.id, cls: r.cls, name: r.name, round: r.round }); S.res.rows = S.res.rows.filter(x => x !== r); S.rd = null; $('#rd').className = 'hidden'; drawResults(); toast('Роботу видалено'); }
+        catch (er) { if (er.message !== 'pin') toast('Не вдалося видалити: ' + er.message, true); }
+        return; }
       case 'rd-close': S.rd = null; $('#rd').className = 'hidden'; return;
       case 'rd-prev': case 'rd-next': { const n = filtered().length; S.rd = Math.max(0, Math.min(n - 1, S.rd + (a === 'rd-next' ? 1 : -1))); return drawDetail(); }
       case 'rd-save': {
