@@ -358,17 +358,17 @@
       secs.push({ type: s.type, n, count: s.type === 'tf' ? Math.min(+s.count || 4, qs.length) : 0, time, per: r2(per), sum: r2(n * per) });
       total += n * per; secTime += n * (time + rt);
     });
-    return { sections: secs, max: r2(total), readTime: rt, totalMin: +t.totalTime > 0 ? +t.totalTime : 15, showGrade: t.showGrade !== false, review: t.review === true };
+    return { sections: secs, max: r2(total), readTime: rt, totalMin: t.noTimer === true ? 0 : (+t.totalTime > 0 ? +t.totalTime : 15), showGrade: t.showGrade !== false, review: t.review === true };
   }
   function renderRules(R) {
     const box = $('rules-box');
     if (!R || !R.sections || !R.sections.length) { box.classList.add('hidden'); return; }
     const cnt = R.sections.reduce((a, s) => a + s.n, 0), hasOpen = R.sections.some(s => s.type === 'open');
-    let h = '<h3>Правила гри</h3><div>Питань: <b>' + cnt + '</b> · максимум балів: <b>' + num(R.max) + '</b> · час на всю роботу: <b>' + R.totalMin + ' хв</b></div>';
+    let h = '<h3>Правила гри</h3><div>Питань: <b>' + cnt + '</b> · максимум балів: <b>' + num(R.max) + '</b> · ' + (R.totalMin > 0 ? 'час на всю роботу: <b>' + R.totalMin + ' хв</b>' : 'без загального таймера') + '</div>';
     h += '<table><tr class="hd"><th>Категорія</th><th class="n">Питань</th><th class="n">Час на питання</th><th class="n">Балів за питання</th><th class="n">Усього</th></tr>' +
       R.sections.map(s => '<tr><td>' + esc(TYPE_NAME[s.type] || s.type) + (s.type === 'tf' ? '<br><span class="hint">у кожному ' + s.count + ' тверджень</span>' : '') + '</td><td class="n" data-l="Питань">' + s.n + '</td><td class="n" data-l="Час на питання">' + dur(s.time) + '</td><td class="n" data-l="Балів за питання">' + (s.type === 'open' ? 'до ' : '') + num(s.per) + '</td><td class="n" data-l="Усього"><b>' + num(s.sum) + '</b></td></tr>').join('') + '</table>';
     h += '<ul>' + (R.readTime > 0 ? '<li>Перед кожним питанням є <b>' + R.readTime + ' с на прочитання</b>: відлік часу ще не йде, кнопка «Наступне питання» вимкнена.</li>' : '') +
-      '<li>Коли час питання вийде, воно закривається автоматично. Час на всю роботу — <b>' + R.totalMin + ' хв</b>, спільний для всього класу: він запускається, коли вчитель відкриває доступ, тож хто почав пізніше, має менше часу. Коли він вийде, робота завершиться сама.</li>' +
+      '<li>Коли час питання вийде, воно закривається автоматично. ' + (R.totalMin > 0 ? 'Час на всю роботу — <b>' + R.totalMin + ' хв</b>, спільний для всього класу: він запускається, коли вчитель відкриває доступ, тож хто почав пізніше, має менше часу. Коли він вийде, робота завершиться сама.' : 'Загального таймера на роботу немає — лише час на кожне питання.') + '</li>' +
       '<li>Повернутися до попереднього питання не можна. Вихід зі сторінки фіксується.</li>' +
       (hasOpen ? '<li>Розгорнуті відповіді оцінюються за наявністю ключових понять, а вчитель може скоригувати оцінку.</li>' : '') + '</ul>';
     h += '<div class="formula">Оцінка (1–12) = 12 × набрані бали ÷ ' + num(R.max) + ', округлено до цілого, але не менше 1.<br><span style="font-weight:500">Наприклад, ' + num(r2(R.max * 0.75)) + ' балів із ' + num(R.max) + ' дають ' + Math.max(1, Math.round(12 * 0.75)) + '.</span></div>';
@@ -598,7 +598,7 @@
     saveState();
   }
   function onReturn() {
-    if (PREVIEW || !isTestStarted || isSubmitted || awayStart === null || document.hidden || fsLost()) return;
+    if (PREVIEW || !isTestStarted || isSubmitted || awayStart === null || document.hidden || (loud() && fsLost())) return;   // у тихому режимі вихід з повного екрана не блокує облік наступних виходів
     const secs = Math.round((Date.now() - awayStart) / 1000);
     awayStart = null;
     if (loud() && (secs > MAX_AWAY_ONE || awayTotal + secs > MAX_AWAY_TOTAL)) {
@@ -607,6 +607,7 @@
       getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(c => { applyCtrl(c); go(); }).catch(go);
     } else {
       evalAway(secs);                                              // попередження одразу, без очікування сервера
+      sendPartial(true, true);                                     // вчитель одразу бачить, що учень повернувся, і скільки був поза сторінкою
       getJson('ctrl=' + encodeURIComponent(TEST_ID)).then(applyCtrl).catch(() => {});
     }
   }
@@ -970,7 +971,7 @@
       awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr(), leaveLog: leaveLogStr(), qTime: qTimeStr()
     });
   }
-  function sendPartial(unloading) {
+  function sendPartial(unloading, back) {
     if (!isTestStarted || isSubmitted) return;
     const now = Date.now();
     if (!unloading && now - (sendPartial.t || 0) < 5000) return;
@@ -978,7 +979,7 @@
     sendDataToScript({
       action: 'submit', className, studentName, partial: 'true', round: String(myRound || ''),
       testScore: String(Math.round(testScore * 100) / 100), answers: JSON.stringify(answers),
-      isInterrupted: 'true', leaves: String(leaves), pastes: String(pasteAttempts), awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr(), leaveLog: leaveLogStr(), qTime: qTimeStr()
+      isInterrupted: 'true', leaves: String(leaves), pastes: String(pasteAttempts), awaySec: String(Math.round(awayTotal)), leaveInfo: leaveInfoStr(), leaveLog: leaveLogStr(), qTime: qTimeStr(), back: back ? 'true' : 'false'
     });
   }
   function showEstGrade() {
