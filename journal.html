@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Журнал оцінок</title>
+<script src="config.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f7a5a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Самостійні">
+<script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
+
+<style>
+  :root { --bg:#f3f1ea; --card:#fff; --ink:#1d2a2e; --muted:#667378; --line:#dcd9ce; --accent:#1f7a5a; --accent-dark:#17614a; --accent-soft:#e3f2ec; --bad:#c0392b; --bad-soft:#fbe0dc; --amber:#b87503; --amber-soft:#fdefc9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .hidden { display:none !important; }
+  .top { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  .top-in { max-width:1100px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .brand { font-weight:800; font-size:18px; flex:1; min-width:180px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:16px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .btn { border:1.5px solid var(--accent); background:var(--accent); color:#fff; border-radius:10px; padding:9px 16px; font:inherit; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn:hover { background:var(--accent-dark); }
+  .btn.ghost { background:#fff; color:var(--ink); border-color:var(--line); } .btn.ghost:hover { border-color:var(--accent); }
+  .btn.on { background:var(--accent-soft); color:var(--accent-dark); border-color:var(--accent); }
+  .btn[disabled] { opacity:.45; cursor:default; }
+  input, select { font:inherit; padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); max-width:100%; }
+  label.f { display:block; font-size:13px; font-weight:700; color:var(--muted); margin-bottom:3px; }
+  .ctl { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+  .muted { color:var(--muted); } .err { color:var(--bad); font-weight:600; }
+  h1 { margin:0 0 10px; font-size:24px; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; z-index:20; max-width:90vw; }
+  #toast.bad { background:var(--bad); }
+
+  .tw { overflow:auto; max-height:calc(100vh - 190px); border:1px solid var(--line); border-radius:10px; }
+  table.j { border-collapse:separate; border-spacing:0; font-size:14px; min-width:100%; }
+  table.j th, table.j td { padding:6px 8px; border-bottom:1px solid var(--line); border-right:1px solid var(--line); text-align:center; white-space:nowrap; background:#fff; }
+  table.j thead th { position:sticky; top:0; background:#f3f1ea; z-index:2; font-size:12px; white-space:normal; min-width:84px; vertical-align:bottom; }
+  table.j th:first-child, table.j td:first-child { position:sticky; left:0; z-index:1; text-align:left; min-width:170px; font-weight:600; background:#fff; }
+  table.j thead th:first-child { z-index:3; background:#f3f1ea; }
+  table.j th.avg, table.j td.avg { font-weight:800; background:#faf9f5; }
+  .g-hi { background:#dff3e6 !important; } .g-mid { background:#fff3cf !important; } .g-lo { background:#fbe0dc !important; } .g-n { background:#c0392b !important; color:#fff; font-weight:800; } .g-z { background:#ffe6b0 !important; }
+  .dt { display:block; font-weight:500; color:var(--muted); }
+  @media (max-width:640px) { .wrap { padding:10px; } table.j th:first-child, table.j td:first-child { min-width:130px; } }
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in"><div class="brand">Журнал оцінок</div>
+  <a class="btn ghost" href="students.html">Списки груп</a><a class="btn ghost" href="seating.html">Розсадка</a><a class="btn ghost" href="editor.html">Кабінет вчителя</a></div></div>
+<div class="wrap">
+  <div id="login" class="panel hidden" style="max-width:380px;margin:40px auto">
+    <h1>Пін вчителя</h1><input id="pin" type="password" placeholder="Пін" style="width:100%"><div style="height:10px"></div>
+    <button class="btn" id="login-go" style="width:100%">Увійти</button><div class="err" id="lerr"></div>
+  </div>
+  <div id="app" class="hidden">
+    <div class="ctl"><div><label class="f">Група</label><select id="cls"></select></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><input type="checkbox" id="att"> Показати відвідуваність</label>
+      <button class="btn ghost" id="reload">↻ Оновити</button><span class="muted" id="info"></span></div>
+    <div class="panel" style="padding:10px"><div class="tw" id="tw"><div class="muted" style="padding:14px">Завантаження…</div></div></div>
+    <p class="muted" style="font-size:13px">Дані беруться з аркушів «Журнал N клас». Виправити оцінку можна в самій таблиці або в результатах роботи в кабінеті вчителя. Колір: 10–12 зелений, 7–9 жовтий, 1–6 червоний; «Н» — відсутній.</p>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let PIN = ''; try { PIN = sessionStorage.getItem('pin') || ''; } catch (e) {}
+  let D = null;
+  function toast(m, bad) { const t = $('toast'); t.textContent = m; t.className = bad ? 'bad' : ''; clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), bad ? 6000 : 2600); }
+  async function api(action, data) {
+    let r; try { r = await fetch(SCRIPT_URL, { method: 'POST', body: new URLSearchParams(Object.assign({ action, pin: PIN }, data || {})) }); } catch (e) { throw new Error('Немає зв\'язку із сервером'); }
+    let j; try { j = await r.json(); } catch (e) { throw new Error('Сервер відповів незрозуміло. Опублікуйте оновлений Code.gs (Нова версія).'); }
+    if (j.error === 'pin') { PIN = ''; try { sessionStorage.removeItem('pin'); } catch (e) {} showLogin(); throw new Error('pin'); }
+    if (j.error) throw new Error(j.error);
+    return j;
+  }
+  function showLogin(msg) { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); $('lerr').textContent = msg || ''; }
+  $('login-go').onclick = async () => {
+    PIN = $('pin').value; try { await api('t_auth'); try { sessionStorage.setItem('pin', PIN); } catch (e) {} boot(); }
+    catch (e) { $('lerr').textContent = e.message === 'pin' ? 'Невірний пін' : e.message; }
+  };
+  $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('login-go').click(); });
+  const cmp = (a, b) => a.localeCompare(b, 'uk', { numeric: true });
+  const dm = iso => iso ? iso.slice(8, 10) + '.' + iso.slice(5, 7) : '';
+  const numOf = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
+  function cell(v, att) {
+    const t = String(v).trim(); if (!t) return '<td></td>';
+    if (t === 'Н') return '<td class="g-n">Н</td>';
+    if (t === 'З') return '<td class="g-z">З</td>';
+    const n = numOf(t); if (n === null || att) return '<td>' + esc(t) + '</td>';
+    return '<td class="' + (n >= 10 ? 'g-hi' : n >= 7 ? 'g-mid' : 'g-lo') + '">' + esc(t) + '</td>';
+  }
+  function draw() {
+    if (!D) return;
+    const showAtt = $('att').checked, idx = D.cols.map((c, i) => i).filter(i => showAtt || !D.cols[i].att);
+    if (!idx.length) { $('tw').innerHTML = '<div class="muted" style="padding:14px">Для цієї групи ще немає оцінок.</div>'; return; }
+    let h = '<table class="j"><thead><tr><th>Учень</th>' + idx.map(i => '<th><span class="dt">' + dm(D.cols[i].d) + '</span>' + esc(D.cols[i].t) + '</th>').join('') + '<th class="avg">Середня</th></tr></thead><tbody>';
+    D.rows.forEach(r => {
+      const nums = idx.filter(i => !D.cols[i].att).map(i => numOf(r.v[i])).filter(n => n !== null);
+      const avg = nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1).replace('.', ',') : '';
+      h += '<tr><td>' + esc(r.name) + '</td>' + idx.map(i => cell(r.v[i], D.cols[i].att)).join('') + '<td class="avg">' + avg + '</td></tr>';
+    });
+    $('tw').innerHTML = h + '</tbody></table>';
+    $('info').textContent = 'Учнів: ' + D.rows.length + ' · колонок: ' + idx.length;
+  }
+  async function load() {
+    $('tw').innerHTML = '<div class="muted" style="padding:14px">Завантаження…</div>';
+    try { D = await api('t_jview', { group: $('cls').value }); try { localStorage.setItem('jv_group', $('cls').value); } catch (e) {} draw(); }
+    catch (e) { if (e.message !== 'pin') { $('tw').innerHTML = '<div class="err" style="padding:14px">' + esc(e.message) + '</div>'; } }
+  }
+  $('cls').onchange = load; $('att').onchange = draw; $('reload').onclick = load;
+  async function boot() {
+    $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+    try {
+      const r = await api('t_stu_get'); const gs = r.groups.slice().sort(cmp);
+      $('cls').innerHTML = gs.map(g => '<option>' + esc(g) + '</option>').join('');
+      let keep = ''; try { keep = localStorage.getItem('jv_group') || ''; } catch (e) {}
+      if (gs.includes(keep)) $('cls').value = keep;
+      load();
+    } catch (e) { if (e.message !== 'pin') toast(e.message, true); }
+  }
+  if (PIN) boot(); else showLogin();
+})();
+</script>
+</body>
+</html>
