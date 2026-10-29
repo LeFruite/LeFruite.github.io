@@ -209,7 +209,7 @@
   };
 
   /* --- табло --- */
-  const studentUrl = () => location.href.replace(/[^/]*$/, '') + 'live.html?s=' + SID;
+  const studentUrl = () => location.href.replace(/[^/]*$/, '') + 'live.html?s=' + SID + (window.SCRIPT_FROM_STORAGE && window.SCRIPT_API_ID ? '&api=' + encodeURIComponent(window.SCRIPT_API_ID) : '');
   function openBoard() {
     show('board'); last = '';
     $('b-code').textContent = SID.toUpperCase();
