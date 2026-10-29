@@ -39,6 +39,10 @@
   .brand i { width: 14px; height: 14px; border-radius: 50%; background: var(--mark); box-shadow: 0 0 0 3px rgba(242,169,0,.3); display: inline-block; }
   .top .crumb { color: #aebbc3; font-size: 14px; }
 
+  .fchips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .chip-b { border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:5px 13px; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  .chip-b.on { background:var(--accent-soft, #e3f2ec); border-color:var(--accent); color:var(--accent-dark); }
+  h3.fh { margin:14px 0 6px; font-size:15px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   /* кнопки */
   .btn { border: 0; border-radius: 8px; padding: 9px 14px; font-weight: 600; cursor: pointer; background: var(--primary); color: #fff; line-height: 1.2; }
   .btn:hover:not(:disabled) { background: var(--primary-dark); }
@@ -335,13 +339,23 @@
 
   async function showList() {
     stopMon(); S.view = 'list'; S.cur = null; S.dirty = false;
-    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="journal.html" style="text-decoration:none;display:inline-block">Журнал оцінок</a><a class="btn ghost" href="students.html" style="text-decoration:none;display:inline-block">Списки груп</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
+    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="materials.html" style="text-decoration:none;display:inline-block">Матеріали</a><a class="btn ghost" href="journal.html" style="text-decoration:none;display:inline-block">Журнал оцінок</a><a class="btn ghost" href="students.html" style="text-decoration:none;display:inline-block">Списки груп</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
       '<div class="wrap"><h1>Роботи</h1><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
     $('#new').onclick = newTest; $('#imp').onclick = () => $('#importpick').click();
     try {
       const r = await api('t_list'); S.tests = r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
     } catch (e) { if (e.message !== 'pin') $('#list').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
-    $('#list').innerHTML = S.tests.length ? S.tests.map(t => {
+    drawTests();
+  }
+  const folderOf = t => t.folder || (t.groups && t.groups.length && /^\d+/.test(t.groups[0]) ? t.groups[0].match(/^\d+/)[0] + ' клас' : '') || 'Без класу';
+  const folderCmp = (a, b) => a.localeCompare(b, 'uk', { numeric: true });
+  function drawTests() {
+    let want = ''; try { want = localStorage.getItem('test_folder') || ''; } catch (e) {}
+    const counts = {}; S.tests.forEach(t => { const k = folderOf(t); counts[k] = (counts[k] || 0) + 1; });
+    const keys = Object.keys(counts).sort(folderCmp); if (want && !counts[want]) want = '';
+    const chips = keys.length > 1 ? '<div class="fchips"><button class="chip-b' + (!want ? ' on' : '') + '" data-act="fold-pick" data-f="">Усі (' + S.tests.length + ')</button>' +
+      keys.map(k => '<button class="chip-b' + (want === k ? ' on' : '') + '" data-act="fold-pick" data-f="' + esc(k) + '">' + esc(k) + ' (' + counts[k] + ')</button>').join('') + '</div>' : '';
+    const row = t => {
       const st = t.ctrl.state;
       return '<div class="row-test"><div class="main"><div class="ttl">' + esc(t.title || '(без назви)') + '</div>' +
         '<div>' + (t.groups.length ? t.groups.map(g => '<span class="chip">' + esc(g) + '</span>').join('') : '<span class="chip off">групи не призначено</span>') + '</div>' +
@@ -350,8 +364,16 @@
         '<button class="btn ghost sm" data-act="res" data-id="' + esc(t.id) + '">Результати</button>' +
         '<button class="btn sm" data-act="dist" data-id="' + esc(t.id) + '">Видача</button>' +
         '<button class="btn ghost sm" data-act="dup" data-id="' + esc(t.id) + '">Копія</button>' +
+        '<button class="btn ghost sm" data-act="tfold" data-id="' + esc(t.id) + '" title="Перенести в іншу папку">Папка</button>' +
         '<button class="btn ghost sm" data-act="del" data-id="' + esc(t.id) + '">Видалити</button></div></div>';
-    }).join('') : '<div class="empty">Робіт ще немає. Створіть першу або імпортуйте готовий файл .json.</div>';
+    };
+    let h = chips;
+    if (!S.tests.length) h = '<div class="empty">Робіт ще немає. Створіть першу або імпортуйте готовий файл .json.</div>';
+    else (want ? [want] : keys).forEach(k => {
+      const list = S.tests.filter(t => folderOf(t) === k);
+      h += (keys.length > 1 ? '<h3 class="fh">' + esc(k) + '</h3>' : '') + list.map(row).join('');
+    });
+    $('#list').innerHTML = h;
   }
 
   function newTest() {
@@ -714,7 +736,7 @@
     $('#gchips').innerHTML = names.length ? names.map(g => '<button class="gchip' + (S.cur.groups.includes(g) ? ' on' : '') + '" data-act="tg" data-g="' + esc(g) + '">' + esc(g) + ' <small>' + ((S.roster[g] || []).length) + ' уч.</small></button>').join('')
       : '<span class="muted">У журналі ще немає груп.</span>';
   }
-  function linkUrl() { return new URL('index.html?t=' + encodeURIComponent(S.cur.id), location.href).href; }
+  function linkUrl() { return new URL('index.html?t=' + encodeURIComponent(S.cur.id) + (window.SCRIPT_FROM_STORAGE && window.SCRIPT_API_ID ? '&api=' + encodeURIComponent(window.SCRIPT_API_ID) : ''), location.href).href; }
   function drawLink() {
     const p = $('#linkpanel'), t = S.cur;
     if (!t.groups.length || S.dirty) { p.innerHTML = '<h2>Посилання для учнів</h2><div class="muted">' + (S.dirty ? 'Збережіть групи — тоді з\'явиться посилання.' : 'Оберіть групи й натисніть «Зберегти групи» — тоді з\'явиться посилання.') + '</div>'; return; }
@@ -889,6 +911,14 @@
     const a = b.dataset.act, si = +b.dataset.s, qi = +b.dataset.q, i = +b.dataset.i, t = S.cur;
     switch (a) {
       /* список */
+      case 'fold-pick': try { localStorage.setItem('test_folder', b.dataset.f || ''); } catch (e) {} return drawTests();
+      case 'tfold': {
+        const tt = S.tests.find(x => x.id === b.dataset.id); if (!tt) return;
+        const ex = Array.from(new Set(S.tests.map(folderOf))).join(', ');
+        const v = prompt('Папка (наприклад, «6 клас», «Хімія»). Порожньо — визначити за групами автоматично.\nІснуючі: ' + ex, tt.folder || folderOf(tt)); if (v === null) return;
+        try { await api('t_folder', { id: tt.id, folder: v.trim() }); tt.folder = v.trim().slice(0, 40); drawTests(); toast('Папку змінено'); }
+        catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+        return; }
       case 'edit': return openTest(b.dataset.id, showEdit);
       case 'dist': return openTest(b.dataset.id, showDist);
       case 'res': return openTest(b.dataset.id, () => showResults(false));
@@ -1039,7 +1069,7 @@
 
   /* ---------- старт ---------- */
   (function boot() {
-    if (!SCRIPT_URL) { app.innerHTML = topbar() + '<div class="wrap"><div class="panel err">Не задано адресу сервера. Відкрийте config.js і вставте адресу Apps Script.</div></div>'; return; }
+    if (!SCRIPT_URL) { app.innerHTML = topbar() + '<div class="wrap"><div class="panel err">Сайт ще не підключено до Google Таблиці. Відкрийте <a href="setup.html">setup.html</a> — це кілька хвилин.</div></div>'; return; }
     let pin = ''; try { pin = sessionStorage.getItem('pin') || ''; } catch (e) {}
     if (!pin) return showLogin();
     S.pin = pin; api('t_auth').then(showList).catch(er => { if (er.message !== 'pin') showLogin(er.message); });
