@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Матеріали</title>
+<script src="config.js"></script>
+<script src="qr-lite.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f7a5a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Самостійні">
+<script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
+
+<style>
+  :root { --bg:#f3f1ea; --card:#fff; --ink:#1d2a2e; --muted:#667378; --line:#dcd9ce; --accent:#1f7a5a; --accent-dark:#17614a; --accent-soft:#e3f2ec; --bad:#c0392b; --bad-soft:#fbe0dc; --amber:#b87503; --amber-soft:#fdefc9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .hidden { display:none !important; }
+  .top { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  .top-in { max-width:1100px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .brand { font-weight:800; font-size:18px; flex:1; min-width:180px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:16px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .btn { border:1.5px solid var(--accent); background:var(--accent); color:#fff; border-radius:10px; padding:9px 16px; font:inherit; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn:hover { background:var(--accent-dark); }
+  .btn.ghost { background:#fff; color:var(--ink); border-color:var(--line); } .btn.ghost:hover { border-color:var(--accent); }
+  .btn.on { background:var(--accent-soft); color:var(--accent-dark); border-color:var(--accent); }
+  .btn[disabled] { opacity:.45; cursor:default; }
+  input, select { font:inherit; padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); max-width:100%; }
+  label.f { display:block; font-size:13px; font-weight:700; color:var(--muted); margin-bottom:3px; }
+  .ctl { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+  .muted { color:var(--muted); } .err { color:var(--bad); font-weight:600; }
+  h1 { margin:0 0 10px; font-size:24px; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; z-index:20; max-width:90vw; }
+  #toast.bad { background:var(--bad); }
+
+  .up { border:2px dashed var(--line); border-radius:12px; padding:16px; text-align:center; background:#faf9f5; }
+  .up.over { border-color:var(--accent); background:var(--accent-soft); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; text-align:left; } @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } }
+  .mrow { border:1px solid var(--line); border-radius:12px; padding:12px; margin:8px 0; background:#fff; }
+  .mrow .t { font-weight:800; } .mrow .ln { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+  .mrow input.lk { flex:1; min-width:200px; font-size:14px; }
+  .mrow .qr { background:#fff; padding:6px; border:1px solid var(--line); border-radius:8px; margin-top:8px; display:inline-block; }
+  h3.fh { margin:16px 0 4px; font-size:15px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .btn.sm { padding:6px 12px; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in"><div class="brand">Матеріали</div>
+  <a class="btn ghost" href="editor.html">Кабінет вчителя</a></div></div>
+<div class="wrap">
+  <div id="login" class="panel hidden" style="max-width:380px;margin:40px auto">
+    <h1>Пін вчителя</h1><input id="pin" type="password" placeholder="Пін" style="width:100%"><div style="height:10px"></div>
+    <button class="btn" id="login-go" style="width:100%">Увійти</button><div class="err" id="lerr"></div>
+  </div>
+  <div id="app" class="hidden">
+    <div class="panel">
+      <h1 style="font-size:20px">Додати свою HTML-сторінку</h1>
+      <div class="muted" style="font-size:14px">Будь-який готовий файл .html (гра, тест, інтерактив, презентація) з'явиться на вашому сайті за коротким посиланням і QR-кодом. Не потрібно нічого завантажувати на GitHub.</div>
+      <div class="up" id="drop" style="margin-top:10px"><button class="btn" id="pick">Вибрати файл .html</button><input type="file" id="file" accept=".html,.htm,text/html" class="hidden"><div class="muted" id="fname" style="margin-top:6px">або перетягніть файл сюди</div>
+        <div class="grid2"><div><label class="f">Назва</label><input id="title" type="text" style="width:100%"></div><div><label class="f">Папка / клас</label><input id="folder" type="text" list="fl" placeholder="6 клас" style="width:100%"><datalist id="fl"></datalist></div></div>
+        <div style="margin-top:10px"><button class="btn" id="send" disabled>Опублікувати</button> <span id="smsg" class="muted"></span></div>
+      </div>
+    </div>
+    <div class="ctl" style="margin-top:14px"><div><label class="f">Показати</label><select id="ff"></select></div><span class="muted" id="cnt"></span></div>
+    <div id="list"></div>
+    <p class="muted" style="font-size:13px">Сторінка відкривається в ізольованому вікні: вона працює (скрипти, звук, форми, відправка в Google Таблицю), але не має доступу до решти вашого сайту. Файл зберігається на вашому Google Диску (папка «Самостійні — матеріали»). Зовнішні бібліотеки з інтернету (Tailwind, іконки, шрифти) підвантажуються, як і зазвичай.</p>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let PIN = ''; try { PIN = sessionStorage.getItem('pin') || ''; } catch (e) {}
+  let ITEMS = [], HTML = '', REPLACE = '';
+  function toast(m, bad) { const t = $('toast'); t.textContent = m; t.className = bad ? 'bad' : ''; clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), bad ? 6000 : 2600); }
+  async function api(action, data) {
+    if (!SCRIPT_URL) throw new Error('Сайт ще не підключено до сервера: відкрийте setup.html.');
+    let r; try { r = await fetch(SCRIPT_URL, { method: 'POST', body: new URLSearchParams(Object.assign({ action, pin: PIN }, data || {})) }); } catch (e) { throw new Error('Немає зв\'язку із сервером'); }
+    let j; try { j = await r.json(); } catch (e) { throw new Error('Сервер відповів незрозуміло. Опублікуйте оновлений Code.gs (Нова версія).'); }
+    if (j.error === 'pin') { PIN = ''; try { sessionStorage.removeItem('pin'); } catch (e) {} showLogin(); throw new Error('pin'); }
+    if (j.error) throw new Error(j.error);
+    return j;
+  }
+  function showLogin(msg) { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); $('lerr').textContent = msg || ''; }
+  $('login-go').onclick = async () => { PIN = $('pin').value; try { await api('t_auth'); try { sessionStorage.setItem('pin', PIN); } catch (e) {} boot(); } catch (e) { $('lerr').textContent = e.message === 'pin' ? 'Невірний пін' : e.message; } };
+  $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('login-go').click(); });
+  const link = id => new URL('m.html?id=' + id + (window.SCRIPT_FROM_STORAGE && window.SCRIPT_API_ID ? '&api=' + encodeURIComponent(window.SCRIPT_API_ID) : ''), location.href).href;
+  const cmp = (a, b) => a.localeCompare(b, 'uk', { numeric: true });
+
+  /* вибір файлу */
+  function setFile(f) {
+    if (!f) return;
+    if (f.size > 6 * 1024 * 1024) { toast('Файл завеликий (понад 6 МБ)', true); return; }
+    const rd = new FileReader();
+    rd.onload = () => {
+      HTML = String(rd.result || '');
+      if (!/<\s*(html|body|script|div)/i.test(HTML)) { toast('Схоже, це не HTML-сторінка', true); HTML = ''; return; }
+      $('fname').textContent = f.name + ' · ' + Math.round(f.size / 1024) + ' КБ';
+      const m = HTML.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (!$('title').value) $('title').value = (m ? m[1] : f.name.replace(/\.html?$/i, '')).replace(/\s+/g, ' ').trim().slice(0, 120);
+      $('send').disabled = false;
+    };
+    rd.readAsText(f, 'UTF-8');
+  }
+  $('pick').onclick = () => $('file').click(); $('file').onchange = e => setFile(e.target.files[0]);
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => setFile(e.dataTransfer.files[0]));
+  $('send').onclick = async () => {
+    if (!HTML) return; $('send').disabled = true; $('smsg').textContent = 'Публікую…';
+    try {
+      const r = await api('t_mat_save', { html: HTML, title: $('title').value, folder: $('folder').value, id: REPLACE });
+      try { localStorage.setItem('mat_folder', $('folder').value); } catch (e) {}
+      HTML = ''; REPLACE = ''; $('file').value = ''; $('title').value = ''; $('fname').textContent = 'або перетягніть файл сюди'; $('smsg').textContent = '';
+      toast('Опубліковано'); await load(r.id);
+    } catch (e) { $('smsg').textContent = ''; if (e.message !== 'pin') toast(e.message, true); $('send').disabled = false; }
+  };
+
+  /* список */
+  function draw(hot) {
+    const folders = Array.from(new Set(ITEMS.map(i => i.folder || 'Без папки'))).sort(cmp);
+    const cur = $('ff').value;
+    $('ff').innerHTML = '<option value="">Усі</option>' + folders.map(f => '<option>' + esc(f) + '</option>').join(''); if (folders.includes(cur)) $('ff').value = cur;
+    $('fl').innerHTML = Array.from(new Set(['5 клас', '6 клас', '7 клас', '8 клас', '9 клас', '10 клас', '11 клас'].concat(ITEMS.map(i => i.folder).filter(Boolean)))).map(f => '<option value="' + esc(f) + '">').join('');
+    const want = $('ff').value, show = folders.filter(f => !want || f === want);
+    $('cnt').textContent = ITEMS.length ? 'Сторінок: ' + ITEMS.length : '';
+    $('list').innerHTML = ITEMS.length ? show.map(f => '<h3 class="fh">' + esc(f) + '</h3>' + ITEMS.filter(i => (i.folder || 'Без папки') === f).map(i =>
+      '<div class="mrow" id="r' + i.id + '"><div class="t">' + esc(i.title) + '</div><div class="muted" style="font-size:13px">' + Math.round(i.size / 1024) + ' КБ · ' + esc(String(i.updated).slice(0, 10)) + '</div>' +
+      '<div class="ln"><input class="lk" readonly value="' + esc(link(i.id)) + '"><button class="btn sm" data-a="copy" data-id="' + i.id + '">Скопіювати</button><a class="btn ghost sm" href="' + esc(link(i.id)) + '" target="_blank" rel="noopener">Відкрити</a></div>' +
+      '<div class="ln"><button class="btn ghost sm" data-a="qr" data-id="' + i.id + '">QR-код</button><button class="btn ghost sm" data-a="meta" data-id="' + i.id + '">Назва / папка</button><button class="btn ghost sm" data-a="repl" data-id="' + i.id + '">Замінити файл</button><button class="btn ghost sm" data-a="del" data-id="' + i.id + '">Видалити</button></div>' +
+      '<div class="qrbox" id="q' + i.id + '"></div></div>').join('')).join('') : '<div class="muted" style="padding:10px">Поки нічого немає. Додайте першу сторінку вище.</div>';
+    if (hot) { const e = $('r' + hot); if (e) e.scrollIntoView({ block: 'center' }); }
+  }
+  async function load(hot) { try { ITEMS = (await api('t_mat_list')).items.sort((a, b) => String(b.updated).localeCompare(String(a.updated))); draw(hot); } catch (e) { if (e.message !== 'pin') toast(e.message, true); } }
+  $('ff').onchange = () => draw();
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-a]'); if (!b) return; const id = b.dataset.id, it = ITEMS.find(x => x.id === id); if (!it) return;
+    if (b.dataset.a === 'copy') { const u = link(id); try { await navigator.clipboard.writeText(u); } catch (er) { const i = b.closest('.mrow').querySelector('.lk'); i.select(); document.execCommand('copy'); } toast('Посилання скопійовано'); }
+    else if (b.dataset.a === 'qr') { const box = $('q' + id); if (box.innerHTML) { box.innerHTML = ''; return; } try { box.innerHTML = '<div class="qr">' + QRLite.svg(link(id), 200) + '</div>'; } catch (er) { box.innerHTML = '<div class="muted">QR недоступний</div>'; } }
+    else if (b.dataset.a === 'meta') {
+      const t = prompt('Назва:', it.title); if (t === null) return; const f = prompt('Папка / клас (наприклад, 6 клас):', it.folder || ''); if (f === null) return;
+      try { await api('t_mat_meta', { id, title: t, folder: f }); it.title = t.trim() || it.title; it.folder = f.trim(); draw(id); toast('Збережено'); } catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+    }
+    else if (b.dataset.a === 'repl') { REPLACE = id; $('title').value = it.title; $('folder').value = it.folder || ''; $('fname').textContent = 'Оберіть новий файл для «' + it.title + '» (посилання не зміниться)'; window.scrollTo({ top: 0, behavior: 'smooth' }); $('file').click(); }
+    else if (b.dataset.a === 'del') { if (!confirm('Видалити «' + it.title + '»? Посилання перестане працювати.')) return; try { await api('t_mat_del', { id }); ITEMS = ITEMS.filter(x => x !== it); draw(); toast('Видалено'); } catch (er) { if (er.message !== 'pin') toast(er.message, true); } }
+  });
+  async function boot() {
+    if (!PIN) return showLogin();
+    try { await api('t_auth'); } catch (e) { if (e.message !== 'pin') showLogin(e.message); return; }
+    $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+    try { $('folder').value = localStorage.getItem('mat_folder') || ''; } catch (e) {}
+    load();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

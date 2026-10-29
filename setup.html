@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Налаштування сайту</title>
+<script src="config.js"></script>
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1f7a5a">
+<style>
+  :root { --bg:#f3f1ea; --card:#fff; --ink:#1d2a2e; --muted:#667378; --line:#dcd9ce; --accent:#1f7a5a; --accent-dark:#17614a; --accent-soft:#e3f2ec; --bad:#c0392b; --bad-soft:#fbe0dc; --amber-soft:#fdefc9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .wrap { max-width:780px; margin:0 auto; padding:18px 16px 60px; }
+  h1 { margin:6px 0 4px; font-size:26px; } .lead { color:var(--muted); margin:0 0 18px; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:12px; }
+  .step > summary { cursor:pointer; list-style:none; display:flex; gap:10px; align-items:center; font-weight:800; font-size:17px; }
+  .step > summary::-webkit-details-marker { display:none; }
+  .num { flex:none; width:30px; height:30px; border-radius:50%; background:var(--accent-soft); color:var(--accent-dark); display:grid; place-items:center; font-weight:800; }
+  .step.done .num { background:var(--accent); color:#fff; }
+  .step .body { margin-top:10px; } .step ol { padding-left:20px; margin:8px 0; } .step li { margin:5px 0; }
+  .btn { border:1.5px solid var(--accent); background:var(--accent); color:#fff; border-radius:10px; padding:9px 16px; font:inherit; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn:hover { background:var(--accent-dark); } .btn.ghost { background:#fff; color:var(--ink); border-color:var(--line); } .btn.ghost:hover { border-color:var(--accent); }
+  .btn[disabled] { opacity:.5; cursor:default; }
+  input[type=text], input[type=password] { font:inherit; padding:9px 11px; border:1.5px solid var(--line); border-radius:8px; width:100%; }
+  code { background:#f3f1ea; padding:1px 6px; border-radius:5px; font-size:.92em; }
+  .note { background:var(--amber-soft); border-radius:10px; padding:9px 12px; margin:10px 0; font-size:15px; }
+  .ok { color:var(--accent-dark); font-weight:700; } .bad { color:var(--bad); font-weight:700; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Налаштування «Самостійних»</h1>
+  <p class="lead">Робиться один раз, приблизно 10 хвилин. Редагувати файли на GitHub не потрібно: адресу сервера цей сайт запам'ятає сам.</p>
+
+  <details class="step" id="s1" open><summary><span class="num">1</span> Таблиця й скрипт</summary><div class="body">
+    <ol>
+      <li>Створіть порожню <a href="https://sheets.new" target="_blank" rel="noopener">Google Таблицю</a> (вона буде вашою базою: результати, журнал, розсадка).</li>
+      <li>У ній: <b>Розширення → Apps Script</b>. Видаліть увесь наявний код.</li>
+      <li>Натисніть кнопку нижче й вставте скопійований код у редактор (<b>Ctrl+V</b>).</li>
+    </ol>
+    <div class="row"><button class="btn" id="copy">Скопіювати код скрипта</button><a class="btn ghost" href="apps-script/Code.gs" target="_blank" rel="noopener">Відкрити як текст</a><span id="copymsg" class="muted"></span></div>
+  </div></details>
+
+  <details class="step" id="s2"><summary><span class="num">2</span> Свій пін-код</summary><div class="body">
+    <p>Нагорі вставленого коду знайдіть блок «ВАШІ НАЛАШТУВАННЯ» й замініть <code>1234</code> у рядку <code>var TEACHER_PIN = "1234";</code> на свій пін. Це пароль до кабінету вчителя, розсадки й журналу. Збережіть код (значок дискети або <b>Ctrl+S</b>).</p>
+  </div></details>
+
+  <details class="step" id="s3"><summary><span class="num">3</span> Дозволи</summary><div class="body">
+    <ol>
+      <li>У редакторі зверху оберіть функцію <code>onOpen</code> і натисніть <b>Запустити</b>.</li>
+      <li>Google попросить дозволи на таблицю й Диск. Натисніть <b>Переглянути дозволи</b>, оберіть свій акаунт.</li>
+      <li>З'явиться застереження «Google не перевірив цю програму» — це нормально, скрипт ваш власний. Натисніть <b>Додатково → Перейти до … (небезпечно)</b> → <b>Дозволити</b>.</li>
+    </ol>
+  </div></details>
+
+  <details class="step" id="s4"><summary><span class="num">4</span> Опублікування</summary><div class="body">
+    <ol>
+      <li>Праворуч угорі: <b>Deploy (Налаштувати розгортання) → New deployment (Нове розгортання)</b>.</li>
+      <li>Значок шестерні → <b>Web app (Веб-застосунок)</b>.</li>
+      <li><i>Execute as (Запуск від імені)</i> — <b>Me (Я)</b>. <i>Who has access (Хто має доступ)</i> — <b>Anyone (Усі)</b>.</li>
+      <li>Натисніть <b>Deploy</b> й скопіюйте адресу, яка закінчується на <code>/exec</code>.</li>
+    </ol>
+    <div class="note">Після кожної зміни коду в Apps Script потрібна <b>Нова версія</b>: Deploy → Manage deployments → ✏️ → Version: New version → Deploy.</div>
+  </div></details>
+
+  <details class="step" id="s5"><summary><span class="num">5</span> Підключення сайту</summary><div class="body">
+    <label for="url"><b>Адреса з кроку 4</b></label>
+    <input type="text" id="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    <div class="row"><button class="btn" id="check">Перевірити й підключити</button><span id="chkmsg"></span></div>
+    <p class="muted" style="margin:6px 0 0;font-size:14px">Адреса зберігається в цьому браузері. Посилання й QR-коди для учнів, які створює кабінет вчителя, містять її самі, тому більше нічого налаштовувати не потрібно. Цей сайт на іншому комп'ютері: відкрийте цю сторінку ще раз і вставте адресу.</p>
+  </div></details>
+
+  <details class="step" id="s6"><summary><span class="num">6</span> Вхід і перша робота</summary><div class="body">
+    <div class="row"><a class="btn" href="editor.html">Відкрити кабінет вчителя</a><a class="btn ghost" href="students.html">Списки груп</a><a class="btn ghost" href="docs.html">Інструкція</a></div>
+    <ol>
+      <li>Увійдіть своїм пін-кодом.</li>
+      <li>У «Списки груп» додайте учнів: оберіть групу й вставте прізвища списком.</li>
+      <li>У кабінеті натисніть <b>Імпорт з файлу</b> і виберіть будь-який файл із папки <code>tests</code>, або створіть власну роботу.</li>
+    </ol>
+  </div></details>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const DONE = 'setup_done'; let done = {}; try { done = JSON.parse(localStorage.getItem(DONE) || '{}'); } catch (e) {}
+  const mark = (n, on = true) => { done[n] = on; try { localStorage.setItem(DONE, JSON.stringify(done)); } catch (e) {} paint(); };
+  function paint() { for (let i = 1; i <= 6; i++) $('s' + i).classList.toggle('done', !!done[i]); }
+  paint();
+  // «готово» для кроків 2–4 відмічаємо вручну, торкнувшись заголовка наступного кроку
+  document.querySelectorAll('.step').forEach((d, i) => d.addEventListener('toggle', () => { if (d.open && i > 0) for (let k = 1; k <= i; k++) if (k < 5 && !done[k]) { done[k] = true; } paint(); try { localStorage.setItem(DONE, JSON.stringify(done)); } catch (e) {} }));
+
+  $('copy').onclick = async () => {
+    $('copymsg').textContent = 'Копіюю…';
+    try {
+      const t = await (await fetch('apps-script/Code.gs', { cache: 'no-store' })).text();
+      if (t.length < 2000) throw new Error('короткий файл');
+      try { await navigator.clipboard.writeText(t); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+      $('copymsg').innerHTML = '<span class="ok">✓ Скопійовано (' + Math.round(t.length / 1000) + ' тис. символів). Тепер вставте в Apps Script.</span>'; mark(1);
+    } catch (e) { $('copymsg').innerHTML = '<span class="bad">Не вдалося скопіювати. Натисніть «Відкрити як текст» і скопіюйте вручну (Ctrl+A, Ctrl+C).</span>'; }
+  };
+
+  function parse(v) {
+    v = String(v || '').trim();
+    let m = v.match(/^https:\/\/script\.google\.com\/macros\/s\/([A-Za-z0-9_-]{20,})\/exec\/?$/);
+    if (m) return { id: m[1], url: v.replace(/\/$/, '') };
+    if (/^https:\/\/script\.google\.com\/a\/[^/]+\/macros\/s\/[A-Za-z0-9_-]+\/exec\/?$/.test(v)) return { id: v.replace(/\/$/, ''), url: v.replace(/\/$/, '') };
+    if (/\/dev\/?$/.test(v)) return { bad: 'Це тестова адреса (/dev). Потрібна адреса розгортання, що закінчується на /exec.' };
+    return null;
+  }
+  $('check').onclick = async () => {
+    const msg = $('chkmsg'), p = parse($('url').value);
+    if (!p) { msg.innerHTML = '<span class="bad">Вставте адресу, що починається з https://script.google.com/ і закінчується на /exec.</span>'; return; }
+    if (p.bad) { msg.innerHTML = '<span class="bad">' + p.bad + '</span>'; return; }
+    msg.textContent = 'Перевіряю…'; $('check').disabled = true;
+    try {
+      let r; try { r = await fetch(p.url, { method: 'POST', body: new URLSearchParams({ action: 't_auth', pin: '' }) }); } catch (e) { throw new Error('Немає відповіді. Перевірте адресу та інтернет.'); }
+      let j; try { j = await r.json(); } catch (e) { throw new Error('Адреса відповіла не так, як очікується. Схоже, доступ не «Anyone (Усі)», або після вставки коду не зроблено нове розгортання.'); }
+      if (j.error !== 'pin' && !j.ok) throw new Error('Скрипт відповів, але це не наш код. Перевірте, що вставлено повний Code.gs і створено нову версію.');
+      try { localStorage.setItem('script_api', p.id); } catch (e) {}
+      mark(5); msg.innerHTML = '<span class="ok">✓ Підключено.</span> Тепер перейдіть до кроку 6.'; $('s6').open = true;
+    } catch (e) { msg.innerHTML = '<span class="bad">' + e.message + '</span>'; }
+    $('check').disabled = false;
+  };
+  try { const cur = localStorage.getItem('script_api'); if (cur) $('url').value = /^https?:/.test(cur) ? cur : 'https://script.google.com/macros/s/' + cur + '/exec'; } catch (e) {}
+  if (window.SCRIPT_URL && !window.SCRIPT_FROM_STORAGE) { $('chkmsg').innerHTML = '<span class="ok">Цей сайт уже підключено до сервера вручну (config.js).</span>'; }
+})();
+</script>
+</body>
+</html>
