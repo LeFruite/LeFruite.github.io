@@ -62,6 +62,20 @@
   .sel { outline:3px solid var(--accent); outline-offset:1px; }
   .dragghost { position:fixed; z-index:50; pointer-events:none; opacity:.9; box-shadow:0 8px 24px rgba(0,0,0,.25); width:170px; transform:translate(-50%,-60%); }
   @media (max-width:760px) { .eg { flex-direction:column; } .eg .poolcol { width:100%; position:static; max-height:none; display:flex; flex-wrap:wrap; gap:6px; } .chip { width:auto; margin:0; } }
+  .lab { flex:1; display:flex; gap:26px; justify-content:center; flex-wrap:wrap; min-width:0; padding:6px 0; }
+  .tb { display:grid; grid-template-columns:minmax(88px,108px) minmax(100px,130px) minmax(88px,108px); gap:8px; align-items:stretch; }
+  .tb .row { grid-column:1 / -1; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .tb .col { display:flex; flex-direction:column; justify-content:space-around; gap:8px; }
+  .tb .top { grid-row:1; } .tb .bot { grid-row:3; }
+  .tb .tab { border:2px solid var(--ink); border-radius:4px; background:linear-gradient(var(--ink),var(--ink)) center/2px 100% no-repeat, linear-gradient(var(--ink),var(--ink)) center/100% 2px no-repeat, #fff; }
+  .tb .row .seat { width:84px; padding:6px 7px; font-size:14px; } .tb .col .seat { padding:6px 8px; font-size:14px; }
+  .kindbox { margin-bottom:12px; }
+  .tcfg { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+  .tcfg .tc { background:#faf9f5; border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .tcfg .tc b { display:block; margin-bottom:4px; }
+  .tcfg .tc label { display:inline-block; font-size:12px; color:var(--muted); font-weight:700; margin-right:6px; }
+  .tcfg .tc input { width:52px; padding:5px 6px; margin-right:6px; }
+  @media (max-width:640px) { .tb { grid-template-columns:minmax(76px,1fr) 80px minmax(76px,1fr); } .tb .row .seat { width:76px; font-size:13px; } .lab { gap:18px; } }
   .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:14px; margin:10px 0; align-items:center; }
   .sw { display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:-2px; margin-right:5px; }
   .sum { font-weight:700; }
@@ -96,7 +110,9 @@
     </div>
 
     <div id="edit-view" class="panel hidden">
-      <div class="ctl">
+      <div class="kindbox"><label class="f">Тип схеми</label><select id="e-kind"><option value="desks">Парти в рядах (звичайний клас)</option><option value="tables">Столи з місцями навколо (хімічний кабінет, лабораторія)</option></select></div>
+      <div class="tcfg hidden" id="e-tcfg"></div>
+      <div class="ctl" id="e-deskctl">
         <div><label class="f">Рядів</label><input type="number" id="e-rows" min="1" max="10" style="width:80px"></div>
         <div><label class="f">Парт у ряду</label><input type="number" id="e-cols" min="1" max="8" style="width:80px"></div>
         <div><label class="f">Місць за партою</label><input type="number" id="e-seats" min="1" max="3" style="width:80px"></div>
@@ -140,7 +156,7 @@
 
   const todayIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   async function boot() {
-    if (!SCRIPT_URL) { $('lerr').textContent = 'Не задано адресу сервера (config.js).'; return showLogin('Не задано адресу сервера (config.js).'); }
+    if (!SCRIPT_URL) { $('lerr').textContent = 'Сайт ще не підключено до сервера: відкрийте setup.html.'; return showLogin('Сайт ще не підключено до сервера: відкрийте setup.html.'); }
     if (!PIN) return showLogin();
     try { ROSTER = (await api('t_roster')).groups || {}; } catch (e) { if (e.message !== 'pin') showLogin(e.message); return; }
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
@@ -153,8 +169,21 @@
 
   /* ---------- схема ---------- */
   function emptyLayout(rows, cols, seats) { return { rows: rows, cols: cols, seats: seats, board: 'bottom', win: 'right', grid: Array.from({ length: rows }, () => Array.from({ length: cols }, () => Array(seats).fill(''))) }; }
+  const SIDES = ['top', 'right', 'bottom', 'left'];
+  function emptyTables(counts) {
+    const tables = counts.map(n => ({ n: n.slice() })), mk = Math.max(1, ...counts.flat());
+    return normLayout({ kind: 'tables', board: 'bottom', win: 'none', tables, grid: tables.map(t => SIDES.map((_, c) => Array(mk).fill(''))) });
+  }
   function normLayout(L) {
+    if (L && L.kind === 'tables' && Array.isArray(L.tables) && L.tables.length) {
+      L.tables = L.tables.slice(0, 6).map(t => ({ n: [0, 1, 2, 3].map(i => Math.max(0, Math.min(8, Math.round(+((t || {}).n || [])[i]) || 0))) }));
+      const mk = Math.max(1, ...L.tables.flatMap(t => t.n)), old = L.grid || [];
+      L.grid = L.tables.map((t, r) => [0, 1, 2, 3].map(c => Array.from({ length: mk }, (_, k) => k < t.n[c] ? (((old[r] || [])[c] || [])[k] || '') : '')));
+      L.rows = L.tables.length; L.cols = 4; L.seats = mk;
+      L.board = L.board === 'top' ? 'top' : 'bottom'; L.win = ['left', 'right'].includes(L.win) ? L.win : 'none'; return L;
+    }
     if (!L || !L.grid) return null;
+    L.kind = 'desks';
     L.rows = L.grid.length; L.cols = Math.max(1, ...L.grid.map(r => r.length)); L.seats = Math.max(1, ...L.grid.flat().map(d => d.length));
     L.grid = L.grid.map(r => Array.from({ length: L.cols }, (_, i) => Array.from({ length: L.seats }, (_, k) => (r[i] || [])[k] || '')));
     L.board = L.board === 'top' ? 'top' : 'bottom'; L.win = ['left', 'none'].includes(L.win) ? L.win : 'right'; return L;
@@ -176,8 +205,21 @@
   $('m-edit').onclick = () => { mode = 'edit'; draw(); };
 
   function seated() { return new Set(LAY.grid.flat(2).filter(Boolean)); }
-  function roomHtml(inner) {
-    const L = LAY, desks = '<div class="desks" style="grid-template-columns:repeat(' + L.cols + ',1fr)">' + inner + '</div>';
+  const isTab = () => !!(LAY && LAY.kind === 'tables');
+  function slots() {   // усі справжні місця у порядку заповнення
+    const out = [];
+    LAY.grid.forEach((r, ri) => r.forEach((d, ci) => d.forEach((_, k) => { if (!isTab() || k < LAY.tables[ri].n[ci]) out.push({ r: ri, c: ci, k }); })));
+    return out;
+  }
+  function labHtml(cell) {   // cell(r,c,k,name) -> html місця
+    const L = LAY, seats = (r, c) => Array.from({ length: L.tables[r].n[c] }, (_, k) => cell(r, c, k, L.grid[r][c][k])).join('');
+    return '<div class="lab">' + L.tables.map((t, r) => {
+      const h = Math.max(t.n[1], t.n[3], 2) * 46;
+      return '<div class="tb"><div class="row top">' + seats(r, 0) + '</div><div class="col">' + seats(r, 3) + '</div><div class="tab" style="min-height:' + h + 'px"></div><div class="col">' + seats(r, 1) + '</div><div class="row bot">' + seats(r, 2) + '</div></div>';
+    }).join('') + '</div>';
+  }
+  function roomHtml(desks) {
+    const L = LAY;
     const win = L.win === 'none' ? '' : '<div class="win">ВІКНА</div>';
     return '<div class="room ' + (L.board === 'top' ? 'top-board' : '') + '"><div class="hall ' + (L.win === 'left' ? 'win-left' : '') + '">' + desks + win + '</div><div class="board">ДОШКА</div></div>';
   }
@@ -194,7 +236,7 @@
     const m = MARKS[name] || ''; return '<button class="seat ' + (m === 'Н' ? 'n' : m === 'З' ? 'z' : '') + '" data-n="' + esc(name) + '">' + (m ? '<span class="tag">' + m + '</span>' : '') + esc(short(name)) + '</button>';
   }
   function drawAtt() {
-    $('room').innerHTML = roomHtml(LAY.grid.flat().map(d => '<div class="desk">' + d.map(seatBtn).join('') + '</div>').join(''));
+    $('room').innerHTML = roomHtml(isTab() ? labHtml((r, c, k, nm) => seatBtn(nm)) : '<div class="desks" style="grid-template-columns:repeat(' + LAY.cols + ',1fr)">' + LAY.grid.flat().map(d => '<div class="desk">' + d.map(seatBtn).join('') + '</div>').join('') + '</div>');
     const s = seated(), rest = (ROSTER[cls()] || []).filter(n => !s.has(n));
     $('pool').innerHTML = rest.length ? '<div class="muted" style="margin-bottom:6px">Без місця в схемі:</div>' + rest.map(seatBtn).join('') : '';
     const vals = Object.values(MARKS), n = vals.filter(v => v === 'Н').length, z = vals.filter(v => v === 'З').length;
@@ -215,10 +257,19 @@
 
   /* ---------- налаштування розсадки ---------- */
   function drawEdit() {
-    const L = LAY; $('e-rows').value = L.rows; $('e-cols').value = L.cols; $('e-seats').value = L.seats; $('e-board').value = L.board; $('e-win').value = L.win;
-    $('e-room').innerHTML = roomHtml(L.grid.map((r, ri) => r.map((d, ci) => '<div class="desk">' + d.map((nm, k) => nm
+    const L = LAY, tab = isTab();
+    $('e-kind').value = tab ? 'tables' : 'desks'; $('e-deskctl').classList.toggle('hidden', tab); $('e-tcfg').classList.toggle('hidden', !tab);
+    $('e-board').value = L.board; $('e-win').value = L.win;
+    $('e-win').innerHTML = tab ? '<option value="none">немає</option><option value="right">праворуч</option><option value="left">ліворуч</option>' : '<option value="right">праворуч</option><option value="left">ліворуч</option><option value="none">немає</option>'; $('e-win').value = L.win;
+    if (!tab) { $('e-rows').value = L.rows; $('e-cols').value = L.cols; $('e-seats').value = L.seats; }
+    else if (!$('e-tcfg').contains(document.activeElement)) {
+      $('e-tcfg').innerHTML = '<div class="tc"><b>Кількість столів</b><input type="number" id="e-nt" min="1" max="6" value="' + L.tables.length + '"></div>' + L.tables.map((t, i) =>
+        '<div class="tc"><b>Стіл ' + (i + 1) + ': місць</b>' + ['зверху', 'праворуч', 'знизу', 'ліворуч'].map((nm, c) => '<label>' + nm + '<br><input type="number" min="0" max="8" data-t="' + i + '" data-s="' + c + '" value="' + t.n[c] + '"></label>').join('') + '</div>').join('');
+    }
+    const cellE = (ri, ci, k, nm) => nm
       ? '<div class="seat drag" data-r="' + ri + '" data-c="' + ci + '" data-k="' + k + '" data-n="' + esc(nm) + '">' + esc(short(nm)) + '</div>'
-      : '<div class="seat slot" data-r="' + ri + '" data-c="' + ci + '" data-k="' + k + '">· · ·</div>').join('') + '</div>').join('')).join(''));
+      : '<div class="seat slot" data-r="' + ri + '" data-c="' + ci + '" data-k="' + k + '">· · ·</div>';
+    $('e-room').innerHTML = roomHtml(tab ? labHtml(cellE) : '<div class="desks" style="grid-template-columns:repeat(' + L.cols + ',1fr)">' + L.grid.map((r, ri) => r.map((d, ci) => '<div class="desk">' + d.map((nm, k) => cellE(ri, ci, k, nm)).join('') + '</div>').join('')).join('') + '</div>');
     const st = seated(), rest = (ROSTER[cls()] || []).filter(n => !st.has(n));
     $('e-pool').innerHTML = '<div class="muted" style="margin-bottom:8px;font-weight:700">Без місця' + (rest.length ? ' (' + rest.length + ')' : '') + '</div>' +
       (rest.length ? rest.map(n => '<div class="chip" data-n="' + esc(n) + '">' + esc(short(n)) + '</div>').join('') : '<div class="muted" style="font-size:14px">Усіх учнів розсаджено. Щоб зняти учня з місця, перетягніть його сюди.</div>');
@@ -292,6 +343,7 @@
     catch (err) { if (err.message !== 'pin') { sv('bad', 'Не збережено: ' + err.message); toast('Не вдалося зберегти розсадку: ' + err.message, true); } }
   }
   function resize() {
+    if (isTab()) return;
     const L = LAY, rows = Math.max(1, Math.min(10, +$('e-rows').value || 1)), cols = Math.max(1, Math.min(8, +$('e-cols').value || 1)), seats = Math.max(1, Math.min(3, +$('e-seats').value || 1));
     L.grid = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => Array.from({ length: seats }, (_, k) => ((L.grid[r] || [])[c] || [])[k] || '')));
     L.rows = rows; L.cols = cols; L.seats = seats; dirty = true; drawEdit(); clearTimeout(saveT); saveT = setTimeout(saveLayout, 900);
@@ -302,8 +354,8 @@
   $('e-fill').onclick = () => {
     if (!confirm('Розсадити всіх за абеткою, починаючи з першого ряду? Поточну схему буде замінено.')) return;
     const names = (ROSTER[cls()] || []).slice().sort((a, b) => a.localeCompare(b, 'uk')); let i = 0;
-    LAY.grid = LAY.grid.map(r => r.map(d => d.map(() => names[i++] || ''))); touched();
-    if (i < names.length) toast('У схемі не вистачає місць ще для ' + (names.length - LAY.rows * LAY.cols * LAY.seats) + ' учн.: збільште ряди чи парти', true);
+    const sl = slots(); LAY.grid = LAY.grid.map(r => r.map(d => d.map(() => ''))); sl.forEach(p => { LAY.grid[p.r][p.c][p.k] = names[i++] || ''; }); touched();
+    if (i < names.length) toast('У схемі не вистачає місць ще для ' + (names.length - sl.length) + ' учн.: додайте місця чи столи', true);
   };
   $('e-clear').onclick = () => { if (!confirm('Очистити всі місця?')) return; LAY.grid = LAY.grid.map(r => r.map(d => d.map(() => ''))); touched(); };
   $('e-imp').onclick = () => $('e-file').click();
@@ -312,6 +364,20 @@
     try { let j = JSON.parse(await f.text()); if (j.layouts) j = j.layouts[cls()] || j.layouts[Object.keys(j.layouts)[0]]; const L = normLayout(j); if (!L) throw 0; LAY = L; dirty = true; drawEdit(); toast('Схему завантажено, перевірте й натисніть «Зберегти розсадку»'); }
     catch (err) { toast('Не вдалося прочитати файл схеми', true); }
   };
+  $('e-kind').onchange = () => {
+    const want = $('e-kind').value, now = isTab() ? 'tables' : 'desks'; if (want === now) return;
+    if (seated().size && !confirm('Змінити тип схеми? Усіх учнів буде знято з місць.')) { $('e-kind').value = now; return; }
+    LAY = want === 'tables' ? emptyTables([[3, 4, 2, 5], [4, 5, 0, 4]]) : emptyLayout(4, 3, 2); touched();
+  };
+  function tablesChanged() {
+    const cfg = $('e-tcfg'), nt = Math.max(1, Math.min(6, +cfg.querySelector('#e-nt').value || 1));
+    const cur = LAY.tables.map(t => t.n.slice());
+    cfg.querySelectorAll('input[data-t]').forEach(inp => { const t = +inp.dataset.t; if (cur[t]) cur[t][+inp.dataset.s] = Math.max(0, Math.min(8, Math.round(+inp.value) || 0)); });
+    while (cur.length < nt) cur.push([3, 3, 0, 3]); cur.length = nt;
+    const old = LAY.grid, L = normLayout({ kind: 'tables', board: LAY.board, win: LAY.win, tables: cur.map(n => ({ n })), grid: old });
+    LAY = L; dirty = true; $('e-tcfg').innerHTML = ''; drawEdit(); clearTimeout(saveT); saveT = setTimeout(saveLayout, 900);
+  }
+  $('e-tcfg').addEventListener('change', tablesChanged);
   $('e-save').onclick = async () => { clearTimeout(saveT); await saveLayout(); if (!dirty) toast('Розсадку збережено'); };
   window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
   boot();
