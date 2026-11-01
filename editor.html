@@ -774,8 +774,9 @@
   function filtered() {
     const f = S.rf;
     return S.res.rows.filter(r => r.round === f.round && (!f.group || r.cls === f.group))
-      .sort((a, b) => String(a.cls).localeCompare(b.cls, 'uk', { numeric: true }) || a.name.localeCompare(b.name, 'uk'));
+      .sort((a, b) => S.rf.byTime ? tkey(a.time).localeCompare(tkey(b.time)) : String(a.cls).localeCompare(b.cls, 'uk', { numeric: true }) || a.name.localeCompare(b.name, 'uk'));
   }
+  const tkey = t => { const m = String(t).match(/(\d\d)\.(\d\d)\.(\d{4}) (\d\d:\d\d)/); return m ? m[3] + m[2] + m[1] + m[4] : String(t); };
   async function showResults(keep) {
     stopMon(); S.view = 'res';
     if (!keep) { S.rf = { round: null, group: '', overwrite: false }; S.rd = null; }
@@ -800,15 +801,16 @@
       '<div><label class="f">Група</label><select id="f-group"><option value="">Усі</option>' + groups.map(g => '<option' + (g === S.rf.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
       '<button class="btn ghost" data-act="res-refresh">Оновити</button></div>' +
       '<div class="gradebox" style="align-items:center"><div style="flex:1 1 260px"><b>Занести в журнал</b><div class="muted" style="font-size:13px">Оцінки потрапляють у журнал лише за цією кнопкою. Якщо ви виставили оцінку вручну — заноситься вона, інакше автоматична.</div></div>' +
-      '<label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-over"' + (S.rf.overwrite ? ' checked' : '') + '> перезаписати наявні</label>' +
+      '<label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-time"' + (S.rf.byTime ? ' checked' : '') + '> за часом</label><label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-over"' + (S.rf.overwrite ? ' checked' : '') + '> перезаписати наявні</label>' +
       '<button class="btn" data-act="res-journal-all"' + (fin.length ? '' : ' disabled') + '>Занести завершені (' + fin.length + ')</button></div>' +
-      (rows.length ? '<div style="overflow:auto"><table class="mon"><tr><th>Група</th><th>Учень</th><th>Статус</th><th>Бали</th><th>Оцінка авто</th><th>Оцінка вчителя</th><th></th></tr>' +
+      (rows.length ? '<div style="overflow:auto"><table class="mon"><tr><th>Група</th><th>Учень</th><th>Час</th><th>Статус</th><th>Бали</th><th>Оцінка авто</th><th>Оцінка вчителя</th><th></th></tr>' +
         rows.map((r, i) => { const k = /^Завершено/.test(r.status) ? 'done' : (/^Перервано|^Вийшов/.test(r.status) ? 'bad' : 'prog'), ag = autoGrade(r);
-          return '<tr class="clk" data-act="rd-open" data-i="' + i + '"><td>' + esc(r.cls) + '</td><td>' + esc(r.name) + '</td><td><span class="st ' + k + '">' + esc(r.status) + '</span></td><td>' + esc(r.total) + (r.total !== '' ? ' / ' + S.res.max : '') + '</td><td>' + (ag !== '' ? '<span class="gtag a">' + ag + '</span>' : '—') + '</td><td>' + (r.final !== '' ? '<span class="gtag t">' + esc(r.final) + '</span>' : '—') + '</td><td><button class="icon x" data-act="rd-del" data-i="' + i + '" title="Видалити роботу">🗑</button></td></tr>'; }).join('') + '</table></div>'
+          return '<tr class="clk" data-act="rd-open" data-i="' + i + '"><td>' + esc(r.cls) + '</td><td>' + esc(r.name) + '</td><td style="white-space:nowrap">' + esc(r.time) + '</td><td><span class="st ' + k + '">' + esc(r.status) + '</span></td><td>' + esc(r.total) + (r.total !== '' ? ' / ' + S.res.max : '') + '</td><td>' + (ag !== '' ? '<span class="gtag a">' + ag + '</span>' : '—') + '</td><td>' + (r.final !== '' ? '<span class="gtag t">' + esc(r.final) + '</span>' : '—') + '</td><td><button class="icon x" data-act="rd-del" data-i="' + i + '" title="Видалити роботу">🗑</button></td></tr>'; }).join('') + '</table></div>'
         : '<div class="empty">У цій спробі ще немає робіт.</div>');
     $('#f-round').onchange = e => { S.rf.round = +e.target.value; drawResults(); };
     $('#f-group').onchange = e => { S.rf.group = e.target.value; drawResults(); };
     $('#f-over').onchange = e => { S.rf.overwrite = e.target.checked; };
+    $('#f-time').onchange = e => { S.rf.byTime = e.target.checked; drawResults(); };
   }
 
   function qIndex() { const m = {}; S.cur.sections.forEach(s => s.questions.forEach(q => { if (q.id) m[q.id] = { s, q }; })); return m; }
