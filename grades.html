@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Оцінки по класах</title>
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1f7a5a">
+<style>
+  :root { --bg:#f3f1ea; --card:#fff; --ink:#1d2a2e; --muted:#667378; --line:#dcd9ce; --accent:#1f7a5a; --accent-soft:#e3f2ec; --bad:#c0392b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .wrap { max-width:1300px; margin:0 auto; padding:16px; }
+  h1 { margin:0 0 12px; font-size:24px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  input,select { font:inherit; padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; max-width:100%; }
+  .btn { border:1.5px solid var(--accent); background:var(--accent); color:#fff; border-radius:10px; padding:8px 14px; font:inherit; font-weight:700; cursor:pointer; text-decoration:none; }
+  .btn.ghost { background:#fff; color:var(--ink); border-color:var(--line); }
+  .btn.on { background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+  .muted { color:var(--muted); font-size:14px; } .err { color:var(--bad); font-weight:600; }
+  .tw { overflow:auto; max-height:calc(100vh - 230px); border:1px solid var(--line); border-radius:10px; }
+  table { border-collapse:separate; border-spacing:0; font-size:14px; }
+  th,td { padding:5px 8px; border-bottom:1px solid var(--line); border-right:1px solid var(--line); text-align:center; white-space:nowrap; background:#fff; }
+  thead th { position:sticky; top:0; background:#e8eef7; z-index:2; }
+  th.n, td.n { position:sticky; left:0; text-align:left; background:#fff; z-index:1; min-width:190px; font-weight:600; }
+  thead th.n { z-index:3; background:#e8eef7; }
+  td.avg { font-weight:700; background:#f7f7f2; }
+  .m { display:inline-block; margin:0 1px; padding:1px 6px; border-radius:6px; font-weight:600; }
+  .c-урок { background:#fff3d6; } .c-ДЗ { background:#e6efff; } .c-СР { background:#ffe3c9; } .c-В { background:#e7f6e7; } .c-Н { background:#ddd; color:#444; }
+  .lg span { margin-right:10px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📊 Оцінки по класах</h1>
+  <div class="panel hidden" id="setup">
+    <p class="muted">Вставте адресу приймача (Marks_Log, «…/exec») і ключ LOG_KEY. Вони зберігаються лише в цьому браузері.</p>
+    <div class="row"><input id="u" placeholder="https://script.google.com/macros/s/…/exec" style="flex:1;min-width:260px"><input id="k" type="password" placeholder="ключ"><button class="btn" id="go">Показати</button></div>
+  </div>
+  <div id="main" class="hidden">
+    <div class="row" id="tabs"></div>
+    <div class="row">
+      <input id="q" placeholder="Пошук учня…">
+      <select id="cat"><option value="">Усі категорії</option></select>
+      <label class="muted"><input type="checkbox" id="rev"> нові дати зліва</label>
+      <button class="btn ghost" id="reload">↻ Оновити</button>
+      <button class="btn ghost" id="out">Вийти</button>
+    </div>
+    <div class="lg muted"><span><b class="m c-урок">9</b> урок</span><span><b class="m c-ДЗ">9</b> Дом. завдання</span><span><b class="m c-СР">9</b> С\Р</span><span><b class="m c-В">9</b> Відпрацювання</span><span><b class="m c-Н">Н</b> відсутність</span></div>
+    <div class="tw" style="margin-top:8px"><table id="t"></table></div>
+    <p class="muted" id="info"></p>
+  </div>
+  <p class="err" id="err"></p>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+let DATA = null, cur = '';
+const ls = { g(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, s(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+const cls = c => /Відпр/i.test(c) ? 'В' : /Дом/i.test(c) ? 'ДЗ' : /^с.?[\\/р]/i.test(c.replace(/[a-z]/gi, ch => ({c:'с',C:'С',p:'р',P:'Р'}[ch] || ch))) ? 'СР' : c === 'Н' ? 'Н' : 'урок';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+
+async function load() {
+  $('err').textContent = '';
+  const u = ls.g('gr_url'), k = ls.g('gr_key');
+  if (!u || !k) { $('setup').classList.remove('hidden'); $('main').classList.add('hidden'); return; }
+  $('setup').classList.add('hidden');
+  try {
+    const r = await fetch(u + (u.includes('?') ? '&' : '?') + 'grades=1&key=' + encodeURIComponent(k));
+    const j = await r.json();
+    if (j.error) throw new Error(j.error === 'bad key' ? 'Невірний ключ' : j.error);
+    DATA = j.classes; $('main').classList.remove('hidden');
+    const names = Object.keys(DATA);
+    if (!names.includes(cur)) cur = ls.g('gr_cls') && names.includes(ls.g('gr_cls')) ? ls.g('gr_cls') : names[0];
+    const cats = new Set(); names.forEach(n => DATA[n].students.forEach(s => s.c.forEach(l => l.forEach(x => cats.add(x[1])))));
+    $('cat').innerHTML = '<option value="">Усі категорії</option>' + [...cats].map(c => `<option>${esc(c)}</option>`).join('');
+    tabs(); draw();
+  } catch (e) {
+    $('err').textContent = 'Не вдалося завантажити: ' + e.message;
+    $('setup').classList.remove('hidden');
+  }
+}
+function tabs() {
+  $('tabs').innerHTML = Object.keys(DATA).map(n => `<button class="btn ghost${n === cur ? ' on' : ''}" data-c="${esc(n)}">${esc(n)}</button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => { cur = b.dataset.c; ls.s('gr_cls', cur); tabs(); draw(); });
+}
+function draw() {
+  const d = DATA[cur]; if (!d) return;
+  const q = $('q').value.trim().toLowerCase(), cat = $('cat').value, rev = $('rev').checked;
+  let idx = d.dates.map((_, i) => i); if (rev) idx.reverse();
+  let h = '<thead><tr><th class="n">Учень</th>' + idx.map(i => `<th>${d.dates[i].slice(8, 10)}.${d.dates[i].slice(5, 7)}</th>`).join('') + '<th>Сер.</th><th>Н</th></tr></thead><tbody>';
+  let shown = 0;
+  d.students.forEach(s => {
+    if (q && !s.n.toLowerCase().includes(q)) return;
+    shown++;
+    let sum = 0, n = 0, ab = 0;
+    const cells = idx.map(i => s.c[i].filter(x => !cat || x[1] === cat).map(x => {
+      const v = parseFloat(String(x[0]).replace(',', '.'));
+      if (x[1] === 'Н') ab++; else if (!isNaN(v)) { sum += v; n++; }
+      return `<span class="m c-${cls(x[1])}" title="${esc(x[1])}">${esc(x[0])}</span>`;
+    }).join(''));
+    h += `<tr><td class="n">${esc(s.n)}</td>` + cells.map(c => `<td>${c}</td>`).join('') + `<td class="avg">${n ? (sum / n).toFixed(1) : ''}</td><td>${ab || ''}</td></tr>`;
+  });
+  $('t').innerHTML = h + '</tbody>';
+  $('info').textContent = shown + ' учнів · ' + d.dates.length + ' днів з оцінками';
+}
+$('go').onclick = () => { ls.s('gr_url', $('u').value.trim()); ls.s('gr_key', $('k').value.trim()); load(); };
+$('reload').onclick = load;
+$('out').onclick = () => { ls.s('gr_url', ''); ls.s('gr_key', ''); DATA = null; load(); };
+$('q').oninput = draw; $('cat').onchange = draw; $('rev').onchange = draw;
+load();
+</script>
+</body>
+</html>
