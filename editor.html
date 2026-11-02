@@ -35,6 +35,15 @@
   .top { position: sticky; top: 0; z-index: 20; background: var(--ink); color: #fff; }
   .top-in { max-width: 1040px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .top .btn { padding: 8px 12px; }
+  details.tools { position: relative; }
+  details.tools summary { list-style: none; cursor: pointer; user-select: none; }
+  details.tools summary::-webkit-details-marker { display: none; }
+  .tools-pop { position: absolute; right: 0; top: calc(100% + 8px); width: 300px; max-width: calc(100vw - 32px); background: #fff; color: var(--ink); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 6px; z-index: 30; }
+  .tools-pop a { display: flex; gap: 12px; align-items: center; padding: 9px 10px; border-radius: 8px; color: inherit; text-decoration: none; }
+  .tools-pop a:hover { background: #f1efe7; }
+  .tools-pop .ti { font-size: 22px; width: 30px; text-align: center; }
+  .tools-pop b { display: block; font-size: 15px; } .tools-pop small { color: #667378; font-size: 12.5px; }
+  .tsearch { width: 100%; margin-bottom: 12px; padding: 10px 12px; font-size: 15px; border: 1.5px solid var(--line); border-radius: 10px; }
   .brand { font-weight: 800; font-size: 17px; letter-spacing: -.01em; margin-right: auto; white-space: nowrap; display: flex; align-items: center; gap: 10px; }
   .brand i { width: 14px; height: 14px; border-radius: 50%; background: var(--mark); box-shadow: 0 0 0 3px rgba(242,169,0,.3); display: inline-block; }
   .top .crumb { color: #aebbc3; font-size: 14px; }
@@ -337,20 +346,41 @@
     $('#login-go').onclick = go; $('#pin').onkeydown = e => { if (e.key === 'Enter') go(); }; $('#pin').focus();
   }
 
+  const TOOLS = [
+    ['🪑', 'Розсадка', 'Схема кабінету, посадка по групах', 'seating.html'],
+    ['📁', 'Матеріали', 'Свої HTML-файли для класів', 'materials.html'],
+    ['📋', 'Журнал самостійних', 'Результати робіт по класах', 'journal.html'],
+    ['📊', 'Оцінки з Extra', 'Таблиця учні × дати', 'grades.html'],
+    ['👥', 'Списки груп', 'Учні та групи', 'students.html'],
+    ['📡', 'Живий урок', 'Питання в реальному часі', 'live-teacher.html'],
+    ['📖', 'Довідка', 'Як усе працює', 'docs.html']
+  ];
+  function toolsMenu() {
+    return '<details class="tools"><summary class="btn ghost">☰ Інструменти</summary><div class="tools-pop">' +
+      TOOLS.map(t => '<a href="' + t[3] + '"><span class="ti">' + t[0] + '</span><span><b>' + t[1] + '</b><small>' + t[2] + '</small></span></a>').join('') + '</div></details>';
+  }
+  document.addEventListener('click', e => { document.querySelectorAll('details.tools[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
+
   async function showList() {
     stopMon(); S.view = 'list'; S.cur = null; S.dirty = false;
-    app.innerHTML = topbar('<a class="btn ghost" href="seating.html" style="text-decoration:none;display:inline-block">Розсадка</a><a class="btn ghost" href="materials.html" style="text-decoration:none;display:inline-block">Матеріали</a><a class="btn ghost" href="journal.html" style="text-decoration:none;display:inline-block">Журнал оцінок</a><a class="btn ghost" href="students.html" style="text-decoration:none;display:inline-block">Списки груп</a><a class="btn ghost" href="live-teacher.html" style="text-decoration:none;display:inline-block">Живий урок</a><button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
-      '<div class="wrap"><h1>Роботи</h1><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
+    app.innerHTML = topbar(toolsMenu() + '<button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
+      '<div class="wrap"><h1>Роботи</h1><input class="tsearch" id="tq" placeholder="Пошук роботи за назвою, темою чи групою…"><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
     $('#new').onclick = newTest; $('#imp').onclick = () => $('#importpick').click();
     try {
       const r = await api('t_list'); S.tests = r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
     } catch (e) { if (e.message !== 'pin') $('#list').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
+    $('#tq').oninput = drawTests;
     drawTests();
   }
   const folderOf = t => t.folder || (t.groups && t.groups.length && /^\d+/.test(t.groups[0]) ? t.groups[0].match(/^\d+/)[0] + ' клас' : '') || 'Без класу';
   const folderCmp = (a, b) => a.localeCompare(b, 'uk', { numeric: true });
   function drawTests() {
     let want = ''; try { want = localStorage.getItem('test_folder') || ''; } catch (e) {}
+    const tq = (($('#tq') || {}).value || '').trim().toLowerCase();
+    const all = S.tests; S.tests = tq ? all.filter(t => [t.title, t.topic, t.subject].concat(t.groups || []).join(' ').toLowerCase().includes(tq)) : all;
+    try { drawTests2(want); } finally { S.tests = all; }
+  }
+  function drawTests2(want) {
     const counts = {}; S.tests.forEach(t => { const k = folderOf(t); counts[k] = (counts[k] || 0) + 1; });
     const keys = Object.keys(counts).sort(folderCmp); if (want && !counts[want]) want = '';
     const chips = keys.length > 1 ? '<div class="fchips"><button class="chip-b' + (!want ? ' on' : '') + '" data-act="fold-pick" data-f="">Усі (' + S.tests.length + ')</button>' +
@@ -624,6 +654,7 @@
       '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Спільний таймер на роботу</label><select data-p="noTimer" data-k="bool"><option value="false"' + (t.noTimer !== true ? ' selected' : '') + '>Є (запускається при «Відкрити доступ»)</option><option value="true"' + (t.noTimer === true ? ' selected' : '') + '>Немає (лише час на питання)</option></select></div>' +
       '<div><label class="f">Час на всю роботу, хв (якщо таймер є; порожньо — 15)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
+      '<div><label class="f">Водяний знак з іменем учня на екрані</label><select data-p="watermark" data-k="bool"><option value="false"' + (t.watermark !== true ? ' selected' : '') + '>Вимкнено</option><option value="true"' + (t.watermark === true ? ' selected' : '') + '>Увімкнено (стримує фото екрана)</option></select></div>' +
       '<div><label class="f">Орієнтовна оцінка після здачі</label><select data-p="showGrade" data-k="bool"><option value="true"' + (t.showGrade !== false ? ' selected' : '') + '>Показувати учню</option><option value="false"' + (t.showGrade === false ? ' selected' : '') + '>Не показувати</option></select></div>' +
       '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div>' +
       '<div><label class="f">Виходи зі сторінки: що бачить учень</label><select data-p="warn" data-k="bool"><option value="false"' + (t.warn !== true ? ' selected' : '') + '>Нічого (тільки записувати вам)</option><option value="true"' + (t.warn === true ? ' selected' : '') + '>Показувати попередження й перервати при перевищенні лімітів</option></select></div></div>' +
