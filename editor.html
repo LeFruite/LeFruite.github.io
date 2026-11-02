@@ -627,9 +627,8 @@
       say('Надсилаю ШІ' + (imgs.length ? ' (' + imgs.length + ' стор., ' + mb.toFixed(1) + ' МБ)' : '') + '… Це може тривати до 1–2 хвилин, не закривайте сторінку.');
       const spec = { counts, level: $('#ai-level').value, grade: $('#ai-grade').value.trim(), subject: t.subject || '', extra: $('#ai-extra').value.trim(), firstPage: first };
       const r = await api('t_ai_gen', { spec: JSON.stringify(spec), text, images: JSON.stringify(imgs) });
-      const added = aiInsert(t, r.data);
-      markDirty(); showEdit();
-      toast('Додано питань: ' + added + '. Перегляньте їх і натисніть ✓ біля кожного. Не забудьте зберегти.');
+      say('');
+      aiReview(r.data);
     } catch (e) { if (e.message !== 'pin') say('Помилка: ' + e.message); }
     finally { const g = $('#ai-go'); if (g) g.disabled = false; }
   }
@@ -970,6 +969,56 @@
     } catch (e) { if (e.message !== 'pin') toast('Не вдалося занести: ' + e.message, true); }
   }
 
+  /* ---------- перегляд і правка питань ШІ ДО додавання в роботу ---------- */
+  let AIREV = null;
+  function aiReview(data) {
+    AIREV = data;
+    let n = 0, h = '';
+    AI_ROWS.forEach(([type]) => (data[type] || []).forEach((x, i) => {
+      n++;
+      const inp = (path, v, ph) => '<input data-ap="' + type + '.' + i + '.' + path + '" value="' + esc(v) + '"' + (ph ? ' placeholder="' + ph + '"' : '') + ' style="width:100%">';
+      let body = '';
+      if (type === 'tf') body = inp('t', x.t) + '<label style="font-size:14px">Вірно?&nbsp;<select data-ap="tf.' + i + '.c"><option value="1"' + (x.c ? ' selected' : '') + '>Так</option><option value="0"' + (!x.c ? ' selected' : '') + '>Ні</option></select></label>';
+      else {
+        body = '<textarea data-ap="' + type + '.' + i + '.text" rows="2" style="width:100%">' + esc(x.text) + '</textarea>';
+        if (type === 'mcq') body += x.o.map((o, k) => '<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><span title="' + (k ? 'хибний' : 'правильний') + '">' + (k ? '✗' : '✓') + '</span>' + inp('o.' + k, o) + '</div>').join('');
+        else if (type === 'multi') body += x.o.map((o, k) => '<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" data-ap="multi.' + i + '.c.' + k + '"' + (x.c.includes(k) ? ' checked' : '') + ' title="правильний">' + inp('o.' + k, o) + '</div>').join('');
+        else if (type === 'short') body += '<div class="muted" style="font-size:13px;margin-top:4px">Прийнятні відповіді (через крапку з комою)</div>' + inp('acc', x.acc.join('; '));
+        else if (type === 'match') body += x.pairs.map((p, k) => '<div style="display:flex;gap:6px;margin-top:4px">' + inp('pairs.' + k + '.0', p[0]) + '<span>→</span>' + inp('pairs.' + k + '.1', p[1]) + '</div>').join('');
+        else if (type === 'open') body += x.concepts.map((c, k) => '<div style="display:flex;gap:6px;margin-top:4px">' + inp('concepts.' + k + '.n', c.n, 'що має бути названо') + inp('concepts.' + k + '.k', c.k, 'корені слів') + '</div>').join('');
+      }
+      h += '<div class="aq" style="border:1px solid #dcd9ce;border-radius:10px;padding:10px;margin:8px 0"><label style="display:flex;gap:8px;align-items:center;font-weight:700;margin-bottom:6px"><input type="checkbox" data-keep="' + type + '.' + i + '" checked> ' + esc(TYPES[type].name) + (x.src ? ' <span class="muted" style="font-weight:500">· ' + esc(x.src) + '</span>' : '') + '</label>' + body + '</div>';
+    }));
+    if (!n) { toast('ШІ не повернув жодного питання', true); return; }
+    const m = modal('<h2 style="margin-top:0">Перегляд питань (' + n + ')</h2><p class="muted" style="font-size:14px">Виправте текст і відповіді, зніміть позначку з зайвих — і додайте в роботу. Нічого не збережено, поки ви не натиснете «Додати».</p>' +
+      '<div style="max-height:62vh;overflow:auto">' + h + '</div><div class="row" style="margin-top:12px"><button class="btn" data-act="ai-accept">Додати вибрані в роботу</button><button class="btn ghost" data-act="modal-close">Відхилити всі</button></div>');
+    m.firstChild.style.maxWidth = '860px';
+  }
+  function aiAccept() {
+    const d = AIREV; if (!d) return;
+    document.querySelectorAll('#xm [data-ap]').forEach(el => {
+      const p = el.dataset.ap.split('.'), type = p[0], i = +p[1], x = d[type][i];
+      if (!x) return;
+      const f = p.slice(2); let v = el.type === 'checkbox' ? el.checked : el.value;
+      if (type === 'multi' && f[0] === 'c') { x.c = x.c || []; const k = +f[1]; x.c = x.c.filter(a => a !== k); if (v) x.c.push(k); return; }
+      if (type === 'tf' && f[0] === 'c') { x.c = v === '1'; return; }
+      if (type === 'short' && f[0] === 'acc') { x.acc = String(v).split(';').map(a => a.trim()).filter(Boolean); return; }
+      let o = x; for (let k = 0; k < f.length - 1; k++) o = o[f[k]];
+      o[f[f.length - 1]] = v;
+    });
+    const out = {};
+    AI_ROWS.forEach(([type]) => { out[type] = (d[type] || []).filter((x, i) => { const c = document.querySelector('#xm [data-keep="' + type + '.' + i + '"]'); return c && c.checked; }); });
+    // відкинути явно зіпсовані після правки
+    out.mcq = out.mcq.filter(x => x.text && x.o.every(a => a.trim()));
+    out.multi = out.multi.filter(x => x.text && x.c.length && x.c.length < x.o.length);
+    out.short = out.short.filter(x => x.text && x.acc.length);
+    const t = S.cur, added = aiInsert(t, out);
+    closeModal(); AIREV = null;
+    if (!added) return toast('Нічого не додано', true);
+    markDirty(); showEdit();
+    toast('Додано питань: ' + added + '. Не забудьте зберегти роботу.');
+  }
+
   /* ---------- аналіз питань: що клас помиляє найчастіше ---------- */
   function qStats() {
     const idx = qIndex(), st = {}, order = [];
@@ -1178,7 +1227,8 @@
       case 'restore': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return doRestore();
       case 'q-an': return showAnalysis();
       case 'an-close': { const m = $('#an'); if (m) m.remove(); return; }
-      case 'modal-close': return closeModal();
+      case 'modal-close': AIREV = null; return closeModal();
+      case 'ai-accept': return aiAccept();
       case 'bank-add': return bankAddCurrent();
       case 'bank-pull': return bankPull();
       case 'bank-do': return bankDo();
