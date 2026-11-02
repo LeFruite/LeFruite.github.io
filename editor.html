@@ -626,11 +626,62 @@
       const mb = imgs.reduce((a, x) => a + x.length, 0) / 1048576;
       say('Надсилаю ШІ' + (imgs.length ? ' (' + imgs.length + ' стор., ' + mb.toFixed(1) + ' МБ)' : '') + '… Це може тривати до 1–2 хвилин, не закривайте сторінку.');
       const spec = { counts, level: $('#ai-level').value, grade: $('#ai-grade').value.trim(), subject: t.subject || '', extra: $('#ai-extra').value.trim(), firstPage: first };
-      const r = await api('t_ai_gen', { spec: JSON.stringify(spec), text, images: JSON.stringify(imgs) });
+      const prep = await api('t_ai_prep', { spec: JSON.stringify(spec) });
+      const parts = [{ text: prep.prompt }];
+      if (text) parts.push({ text: 'ТЕКСТ МАТЕРІАЛУ (витягнуто з файлу, може бути неповним):\n' + text.slice(0, 120000) });
+      imgs.slice(0, 40).forEach((b, i) => { parts.push({ text: 'Слайд/сторінка ' + (first + i) + ':' }); parts.push({ inline_data: { mime_type: 'image/jpeg', data: b } }); });
+      const raw = await geminiCall(prep, parts, say);
+      say('Обробляю відповідь…');
+      const r = await api('t_ai_clean', { counts: JSON.stringify(counts), raw });
       say('');
       aiReview(r.data);
     } catch (e) { if (e.message !== 'pin') say('Помилка: ' + e.message); }
     finally { const g = $('#ai-go'); if (g) g.disabled = false; }
+  }
+  // Запит до Gemini робить сам браузер: Apps Script обмежений 6 хв і розміром запиту, через що великі файли давали «Немає зв'язку»
+  async function geminiCall(prep, parts, say) {
+    const body = JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { temperature: 0.4, responseMimeType: 'application/json' } });
+    const base = 'https://generativelanguage.googleapis.com/v1beta/';
+    const t0 = Date.now(); let tick = null, lastErr = '';
+    const one = async model => {
+      const ac = new AbortController(), to = setTimeout(() => ac.abort(), 300000);
+      tick = setInterval(() => say('Чекаю відповіді Gemini (' + model + ')… ' + Math.round((Date.now() - t0) / 1000) + ' с'), 1000);
+      try {
+        const r = await fetch(base + 'models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': prep.key }, body, signal: ac.signal });
+        let j = null; try { j = await r.json(); } catch (e) {}
+        return { code: r.status, j };
+      } catch (e) { return { code: 0, j: null, msg: e.name === 'AbortError' ? 'Gemini не відповів за 5 хвилин. Спробуйте менше сторінок.' : 'Не вдалося зв\'язатися з Gemini (' + e.message + ')' }; }
+      finally { clearTimeout(to); clearInterval(tick); }
+    };
+    const text = res => { const ps = res.j && res.j.candidates && res.j.candidates[0] && res.j.candidates[0].content && res.j.candidates[0].content.parts; return ps ? ps.map(x => x.text || '').join('') : ''; };
+    const tried = new Set();
+    const run = async model => {
+      tried.add(model); let res;
+      for (let at = 0; at < 3; at++) {
+        res = await one(model);
+        if ([503, 429, 500].includes(res.code) && at < 2) { say('Gemini зайнятий, пробую ще раз…'); await new Promise(r => setTimeout(r, 4000)); continue; }
+        break;
+      }
+      lastErr = res.msg || (res.j && res.j.error && res.j.error.message) || ('помилка ' + res.code);
+      return res;
+    };
+    for (const m of [prep.model, prep.fallback]) {
+      if (!m || tried.has(m)) continue;
+      const res = await run(m);
+      if (res.code === 200) { const tx = text(res); if (tx) return tx; throw new Error('Gemini не повернув питань' + (res.j && res.j.promptFeedback && res.j.promptFeedback.blockReason ? ' (заблоковано: ' + res.j.promptFeedback.blockReason + ')' : '') + '. Спробуйте інший файл.'); }
+      if (res.code !== 404 && res.code !== 503 && res.code !== 429 && res.code !== 500 && !(res.code === 400 && /model/i.test(lastErr))) throw new Error('Gemini: ' + String(lastErr).replace(prep.key, '***').slice(0, 300));
+    }
+    // моделі застаріли — беремо найновішу доступну «flash» зі списку Gemini
+    say('Шукаю доступну модель Gemini…');
+    let list = []; try { const lr = await fetch(base + 'models?pageSize=200', { headers: { 'x-goog-api-key': prep.key } }); list = (await lr.json()).models || []; } catch (e) {}
+    const ver = n => { const x = n.match(/(\d+(?:\.\d+)?)/); return x ? parseFloat(x[1]) : 0; };
+    const ms = list.filter(m => /flash/i.test(m.name) && !/lite|image|tts|live|audio|thinking|exp/i.test(m.name) && (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => m.name.replace(/^models\//, '')).filter(n => !tried.has(n)).sort((a, b) => ver(b) - ver(a) || (/preview/i.test(a) ? 1 : 0) - (/preview/i.test(b) ? 1 : 0));
+    for (const m of ms.slice(0, 3)) {
+      const res = await run(m);
+      if (res.code === 200) { const tx = text(res); if (tx) { try { await api('t_ai_model', { model: m }); } catch (e) {} return tx; } }
+    }
+    throw new Error('Gemini: ' + String(lastErr).replace(prep.key, '***').slice(0, 300));
   }
   function photoB64(f) {
     return new Promise((res, rej) => {
