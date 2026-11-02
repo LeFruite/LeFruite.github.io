@@ -43,6 +43,14 @@
   .tools-pop a:hover { background: #f1efe7; }
   .tools-pop .ti { font-size: 22px; width: 30px; text-align: center; }
   .tools-pop b { display: block; font-size: 15px; } .tools-pop small { color: #667378; font-size: 12.5px; }
+  .openbar { background:#e8f6ee; border:1px solid #bfe3cc; border-radius:10px; padding:8px 12px; margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:14.5px; }
+  .tools-pop button.tl { display:flex; gap:12px; align-items:center; padding:9px 10px; border-radius:8px; color:inherit; background:none; border:0; width:100%; text-align:left; font:inherit; cursor:pointer; }
+  .tools-pop button.tl:hover { background:#f1efe7; }
+  .tools-pop hr { border:0; border-top:1px solid #e6e3d8; margin:4px 6px; }
+  .bar { height:8px; border-radius:4px; background:#e9e7df; overflow:hidden; min-width:80px; } .bar i { display:block; height:100%; }
+  .an-t { width:100%; border-collapse:collapse; font-size:14px; } .an-t th, .an-t td { padding:7px 8px; border-bottom:1px solid #e6e3d8; text-align:left; vertical-align:top; }
+  .an-t th { background:#f4f2ea; position:sticky; top:0; } .wr { font-size:12.5px; color:#8a2d1d; } .pc { font-weight:800; white-space:nowrap; }
+  .bk-row { display:flex; gap:10px; align-items:flex-start; padding:8px 4px; border-bottom:1px solid #e6e3d8; } .bk-row .tp { font-size:12.5px; color:#667378; }
   .tsearch { width: 100%; margin-bottom: 12px; padding: 10px 12px; font-size: 15px; border: 1.5px solid var(--line); border-radius: 10px; }
   .brand { font-weight: 800; font-size: 17px; letter-spacing: -.01em; margin-right: auto; white-space: nowrap; display: flex; align-items: center; gap: 10px; }
   .brand i { width: 14px; height: 14px; border-radius: 50%; background: var(--mark); box-shadow: 0 0 0 3px rgba(242,169,0,.3); display: inline-block; }
@@ -353,11 +361,15 @@
     ['📊', 'Оцінки з Extra', 'Таблиця учні × дати', 'grades.html'],
     ['👥', 'Списки груп', 'Учні та групи', 'students.html'],
     ['📡', 'Живий урок', 'Питання в реальному часі', 'live-teacher.html'],
-    ['📖', 'Довідка', 'Як усе працює', 'docs.html']
+    ['📖', 'Довідка', 'Як усе працює', 'docs.html'],
+    null,
+    ['🏦', 'Банк питань', 'Питання окремо від робіт', '', 'bank'],
+    ['💾', 'Резервна копія', 'Зберегти все одним файлом', '', 'backup'],
+    ['♻️', 'Відновити з копії', 'Завантажити файл копії', '', 'restore']
   ];
   function toolsMenu() {
     return '<details class="tools"><summary class="btn ghost">☰ Інструменти</summary><div class="tools-pop">' +
-      TOOLS.map(t => '<a href="' + t[3] + '"><span class="ti">' + t[0] + '</span><span><b>' + t[1] + '</b><small>' + t[2] + '</small></span></a>').join('') + '</div></details>';
+      TOOLS.map(t => !t ? '<hr>' : t[4] ? '<button class="tl" data-act="' + t[4] + '"><span class="ti">' + t[0] + '</span><span><b>' + t[1] + '</b><small>' + t[2] + '</small></span></button>' : '<a href="' + t[3] + '"><span class="ti">' + t[0] + '</span><span><b>' + t[1] + '</b><small>' + t[2] + '</small></span></a>').join('') + '</div></details>';
   }
   document.addEventListener('click', e => { document.querySelectorAll('details.tools[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
 
@@ -371,6 +383,10 @@
     } catch (e) { if (e.message !== 'pin') $('#list').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
     $('#tq').oninput = drawTests;
     drawTests();
+    monTimer = setInterval(async () => {                       // лічильник відкритих робіт оновлюється сам
+      if (S.view !== 'list') return;
+      try { const r = await api('t_list'); S.tests = r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated))); drawTests(); } catch (e) {}
+    }, 20000);
   }
   const folderOf = t => t.folder || (t.groups && t.groups.length && /^\d+/.test(t.groups[0]) ? t.groups[0].match(/^\d+/)[0] + ' клас' : '') || 'Без класу';
   const folderCmp = (a, b) => a.localeCompare(b, 'uk', { numeric: true });
@@ -378,9 +394,9 @@
     let want = ''; try { want = localStorage.getItem('test_folder') || ''; } catch (e) {}
     const tq = (($('#tq') || {}).value || '').trim().toLowerCase();
     const all = S.tests; S.tests = tq ? all.filter(t => [t.title, t.topic, t.subject].concat(t.groups || []).join(' ').toLowerCase().includes(tq)) : all;
-    try { drawTests2(want); } finally { S.tests = all; }
+    try { drawTests2(want, all.filter(t => t.ctrl.state !== 'closed')); } finally { S.tests = all; }
   }
-  function drawTests2(want) {
+  function drawTests2(want, opened) {
     const counts = {}; S.tests.forEach(t => { const k = folderOf(t); counts[k] = (counts[k] || 0) + 1; });
     const keys = Object.keys(counts).sort(folderCmp); if (want && !counts[want]) want = '';
     const chips = keys.length > 1 ? '<div class="fchips"><button class="chip-b' + (!want ? ' on' : '') + '" data-act="fold-pick" data-f="">Усі (' + S.tests.length + ')</button>' +
@@ -390,14 +406,18 @@
       return '<div class="row-test"><div class="main"><div class="ttl">' + esc(t.title || '(без назви)') + '</div>' +
         '<div>' + (t.groups.length ? t.groups.map(g => '<span class="chip">' + esc(g) + '</span>').join('') : '<span class="chip off">групи не призначено</span>') + '</div>' +
         '<div class="muted" style="font-size:13px;margin-top:2px">Макс. ' + t.max + ' б. · <span class="state ' + st + '">' + STATE_TXT[st] + '</span>' + (t.ctrl.round > 1 ? ' · спроба №' + t.ctrl.round : '') + '</div></div>' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" data-act="edit" data-id="' + esc(t.id) + '">Редагувати</button>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+        (st === 'closed' ? '<button class="btn ok sm" data-act="qctl" data-k="open" data-id="' + esc(t.id) + '">▶ Відкрити</button>' :
+          st === 'paused' ? '<button class="btn ok sm" data-act="qctl" data-k="open" data-id="' + esc(t.id) + '">▶ Продовжити</button><button class="btn ghost sm" data-act="qctl" data-k="close" data-id="' + esc(t.id) + '">⏹ Закрити</button>' :
+          '<button class="btn ghost sm" data-act="qctl" data-k="pause" data-id="' + esc(t.id) + '">⏸ Пауза</button><button class="btn ghost sm" data-act="qctl" data-k="close" data-id="' + esc(t.id) + '">⏹ Закрити</button>') +
+        '<button class="btn ghost sm" data-act="edit" data-id="' + esc(t.id) + '">Редагувати</button>' +
         '<button class="btn ghost sm" data-act="res" data-id="' + esc(t.id) + '">Результати</button>' +
         '<button class="btn sm" data-act="dist" data-id="' + esc(t.id) + '">Видача</button>' +
         '<button class="btn ghost sm" data-act="dup" data-id="' + esc(t.id) + '">Копія</button>' +
         '<button class="btn ghost sm" data-act="tfold" data-id="' + esc(t.id) + '" title="Перенести в іншу папку">Папка</button>' +
         '<button class="btn ghost sm" data-act="del" data-id="' + esc(t.id) + '">Видалити</button></div></div>';
     };
-    let h = chips;
+    let h = (opened.length ? '<div class="openbar">🟢 <b>Зараз відкрито: ' + opened.length + '</b>' + opened.map(t => '<button class="chip-b" data-act="dist" data-id="' + esc(t.id) + '" title="Відкрити моніторинг">' + esc(t.title || '(без назви)') + (t.ctrl.state === 'paused' ? ' ⏸' : '') + '</button>').join('') + '</div>' : '') + chips;
     if (!S.tests.length) h = '<div class="empty">Робіт ще немає. Створіть першу або імпортуйте готовий файл .json.</div>';
     else (want ? [want] : keys).forEach(k => {
       const list = S.tests.filter(t => folderOf(t) === k);
@@ -557,6 +577,7 @@
       '<div><label class="f">Клас</label><input type="text" id="ai-grade" value="' + esc((t.grade || '6')) + '"></div>' +
       '<div><label class="f">Складність</label><select id="ai-level"><option value="easy">Простіше</option><option value="mid" selected>Середня</option><option value="hard">Складніше</option></select></div></div>' +
       '<label class="f">…або вставте текст уроку замість файлу</label><textarea id="ai-text" rows="3" placeholder="Текст параграфа, конспект…"></textarea>' +
+      '<label class="f">…або сфотографуйте / оберіть фото сторінок підручника (можна кілька)</label><input type="file" id="ai-img" accept="image/*" multiple>' +
       '<label class="f" style="margin-top:8px">Скільки питань кожного типу</label><div class="row">' +
       AI_ROWS.map(r => '<div><label class="f">' + r[1] + '</label><input type="number" min="0" max="15" id="ai-n-' + r[0] + '" value="' + r[2] + '"></div>').join('') + '</div>' +
       '<label class="f">Побажання (необов\'язково)</label><input type="text" id="ai-extra" placeholder="наприклад: більше про планети земної групи; без дат">' +
@@ -594,13 +615,14 @@
     const counts = {}; let total = 0;
     AI_ROWS.forEach(r => { const v = Math.max(0, Math.min(15, parseInt($('#ai-n-' + r[0]).value, 10) || 0)); counts[r[0]] = v; total += v; });
     if (!total) return say('Вкажіть, скільки питань потрібно хоча б одного типу.');
-    const file = $('#ai-file').files[0], pasted = $('#ai-text').value.trim();
-    if (!file && pasted.length < 200) return say('Оберіть PDF-файл або вставте текст уроку (хоча б кілька речень).');
+    const file = $('#ai-file').files[0], pasted = $('#ai-text').value.trim(), photos = [...($('#ai-img').files || [])];
+    if (!file && !photos.length && pasted.length < 200) return say('Оберіть PDF-файл, фото сторінок або вставте текст уроку (хоча б кілька речень).');
     go.disabled = true;
     try {
       let imgs = [], text = pasted, first = 1;
       if (file && /\.txt$|text\/plain/.test(file.name + file.type)) text = (await file.text()) + '\n' + pasted;
       else if (file) { const r = await pdfPages(file, $('#ai-pages').value, say); imgs = r.images; text = r.text + '\n' + pasted; first = r.first; }
+      if (!file && photos.length) { say('Готую фото…'); imgs = await Promise.all(photos.slice(0, 20).map(photoB64)); }
       const mb = imgs.reduce((a, x) => a + x.length, 0) / 1048576;
       say('Надсилаю ШІ' + (imgs.length ? ' (' + imgs.length + ' стор., ' + mb.toFixed(1) + ' МБ)' : '') + '… Це може тривати до 1–2 хвилин, не закривайте сторінку.');
       const spec = { counts, level: $('#ai-level').value, grade: $('#ai-grade').value.trim(), subject: t.subject || '', extra: $('#ai-extra').value.trim(), firstPage: first };
@@ -610,6 +632,19 @@
       toast('Додано питань: ' + added + '. Перегляньте їх і натисніть ✓ біля кожного. Не забудьте зберегти.');
     } catch (e) { if (e.message !== 'pin') say('Помилка: ' + e.message); }
     finally { const g = $('#ai-go'); if (g) g.disabled = false; }
+  }
+  function photoB64(f) {
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(f), im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, 1400 / Math.max(im.width, im.height)), cv = document.createElement('canvas');
+        cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+        const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(im, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url); res(cv.toDataURL('image/jpeg', 0.72).split(',')[1]);
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Не вдалося прочитати фото ' + f.name)); };
+      im.src = url;
+    });
   }
   function aiInsert(t, data) {
     let added = 0;
@@ -661,7 +696,7 @@
       (t.sheetName ? '<p class="help">Результати пишуться в аркуш Google Таблиці: «' + esc(t.sheetName) + '».</p>' : '<p class="help">Аркуш результатів створиться автоматично після першого збереження.</p>') + '</div>' +
       (t.sections.length ? t.sections.map((s, i) => secHtml(s, i, t)).join('') : '<div class="panel"><div class="empty">Додайте перший блок питань.</div></div>') +
       '<div class="panel"><h2>Додати блок питань</h2><div class="grid"><select id="newtype">' + Object.keys(TYPES).map(k => '<option value="' + k + '">' + esc(TYPES[k].name) + '</option>').join('') + '</select>' +
-      '<button class="btn" data-act="add-s">+ Додати блок</button></div></div>' + aiPanel(t) + '</div>' +
+      '<button class="btn" data-act="add-s">+ Додати блок</button></div></div>' + aiPanel(t) + bankPanel() + '</div>' +
       '<div class="sumbar"><div class="sumbar-in" id="sumbar">' + sumHtml(sm) + '</div></div>';
     mountAll();
   }
@@ -830,7 +865,7 @@
     const rows = filtered(), fin = rows.filter(r => isFin(r.status));
     $('#resbody').innerHTML = '<div class="filters"><div><label class="f">Спроба</label><select id="f-round">' + rounds.map(x => '<option value="' + x + '"' + (x === S.rf.round ? ' selected' : '') + '>№' + x + '</option>').join('') + '</select></div>' +
       '<div><label class="f">Група</label><select id="f-group"><option value="">Усі</option>' + groups.map(g => '<option' + (g === S.rf.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
-      '<button class="btn ghost" data-act="res-refresh">Оновити</button></div>' +
+      '<button class="btn ghost" data-act="res-refresh">Оновити</button><button class="btn ghost" data-act="q-an">📈 Аналіз питань</button></div>' +
       '<div class="gradebox" style="align-items:center"><div style="flex:1 1 260px"><b>Занести в журнал</b><div class="muted" style="font-size:13px">Оцінки потрапляють у журнал лише за цією кнопкою. Якщо ви виставили оцінку вручну — заноситься вона, інакше автоматична.</div></div>' +
       '<label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-time"' + (S.rf.byTime ? ' checked' : '') + '> за часом</label><label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-over"' + (S.rf.overwrite ? ' checked' : '') + '> перезаписати наявні</label>' +
       '<button class="btn" data-act="res-journal-all"' + (fin.length ? '' : ' disabled') + '>Занести завершені (' + fin.length + ')</button></div>' +
@@ -935,6 +970,193 @@
     } catch (e) { if (e.message !== 'pin') toast('Не вдалося занести: ' + e.message, true); }
   }
 
+  /* ---------- аналіз питань: що клас помиляє найчастіше ---------- */
+  function qStats() {
+    const idx = qIndex(), st = {}, order = [];
+    const get = (key, title, type, max) => st[key] || (order.push(key), st[key] = { key, title, type, max, n: 0, sum: 0, wrong: {} });
+    const bad = (o, w) => { w = String(w || '').trim().slice(0, 90) || '(без відповіді)'; o.wrong[w] = (o.wrong[w] || 0) + 1; };
+    filtered().filter(r => isFin(r.status)).forEach(r => {
+      Object.keys(r.answers).forEach(slot => {
+        const a = parseAns(r.answers[slot]);
+        if (a.open) { const info = idx[a.pid]; get(a.pid || slot, a.qtext || (info && info.q.text) || slot, 'open', null).n++; return; }
+        if (a.pid.indexOf('tf:') === 0) {
+          const ids = a.pid.slice(3).split(',').map(x => parseInt(x, 10)), sec = S.cur.sections.find(s => s.type === 'tf' && ids.every(i => i <= s.questions.length));
+          if (!sec) return;
+          const got = {}; String(a.shown).replace(/(\d+)\)(Так|Ні|—)/g, (_, i, v) => { got[i] = v; return ''; });
+          ids.forEach((id, k) => {
+            const q = sec.questions[id - 1]; if (!q) return;
+            const v = got[k + 1] || '—', right = q.c ? 'Так' : 'Ні', o = get('tf:' + q.t, q.t, 'tf', 1);
+            o.n++; if (v === right) o.sum += 1; else bad(o, v);
+          });
+          return;
+        }
+        const info = idx[a.pid]; if (!info || a.earned == null) return;
+        const max = +info.s.points || 0; if (!max) return;
+        const o = get(a.pid, info.q.text, info.s.type, max);
+        o.n++; o.sum += Math.min(1, a.earned / max);
+        if (a.earned < max - 0.001) bad(o, a.shown);
+      });
+    });
+    return order.map(k => st[k]);
+  }
+  function showAnalysis() {
+    const list = qStats(), scored = list.filter(x => x.max != null && x.n).sort((a, b) => a.sum / a.n - b.sum / b.n), opens = list.filter(x => x.max == null);
+    const nStud = filtered().filter(r => isFin(r.status)).length, weak = scored.filter(x => x.sum / x.n < 0.6 && x.n >= 2).length;
+    let host = $('#an'); if (!host) { host = document.createElement('div'); host.id = 'an'; document.body.appendChild(host); }
+    host.className = 'rd-back';
+    const col = p => p < 0.5 ? '#c0392b' : p < 0.75 ? '#e0a100' : '#1f9d55';
+    host.innerHTML = '<div class="rd-panel" style="max-width:980px"><div style="display:flex;gap:10px;align-items:center"><h2 style="margin:0;flex:1">📈 Аналіз питань</h2><button class="btn ghost" data-act="an-close">Закрити</button></div>' +
+      '<p class="muted" style="font-size:14px">Спроба №' + S.rf.round + (S.rf.group ? ' · ' + esc(S.rf.group) : ' · усі групи') + ' · завершених робіт: <b>' + nStud + '</b>. Від найгірших до найкращих.' +
+      (weak ? ' <b style="color:#c0392b">Варто пояснити ще раз: ' + weak + ' пит. (нижче 60%)</b>' : '') + '</p>' +
+      (scored.length ? '<div style="overflow:auto"><table class="an-t"><tr><th>Правильно</th><th></th><th>Питання</th><th>Відповіли</th><th>Типові помилки</th></tr>' + scored.map(x => {
+        const p = x.sum / x.n, w = Object.entries(x.wrong).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        return '<tr><td class="pc" style="color:' + col(p) + '">' + Math.round(p * 100) + '%</td><td style="width:90px"><div class="bar"><i style="width:' + Math.round(p * 100) + '%;background:' + col(p) + '"></i></div></td><td>' +
+          esc(String(x.title || '').slice(0, 160)) + '<div class="muted" style="font-size:12px">' + esc((TYPES[x.type] || {}).name || x.type) + '</div></td><td>' + x.n + '</td><td>' +
+          (w.length ? w.map(([t, c]) => '<div class="wr">«' + esc(t) + '» ×' + c + '</div>').join('') : '<span class="muted">—</span>') + '</td></tr>';
+      }).join('') + '</table></div>' : '<div class="empty">Немає завершених робіт з автоматичною перевіркою для цього фільтра.</div>') +
+      (opens.length ? '<h3>Розгорнуті відповіді (перевіряються за поняттями / вручну)</h3>' + opens.map(x => '<div class="muted" style="font-size:14px">• ' + esc(String(x.title).slice(0, 140)) + ' — відповідей: ' + x.n + '</div>').join('') : '') + '</div>';
+  }
+
+  /* ---------- банк питань ---------- */
+  let BANK = [];
+  const qPrev = q => String((q && (q.text || q.t || q.passage || q.title)) || '(без тексту)').replace(/\s+/g, ' ').slice(0, 150);
+  const gradeOfGroups = t => { const m = String((t.groups || [])[0] || '').match(/^\d+/); return m ? m[0] : ''; };
+  async function bankLoad() { BANK = (await api('t_bank_list')).items || []; return BANK; }
+  function bankPanel() {
+    return '<div class="panel"><h2>🏦 Банк питань</h2><p class="help">Зберігайте питання окремо від робіт і збирайте нові роботи з банку випадково.</p>' +
+      '<div class="row"><button class="btn ghost" data-act="bank-add">⬆ Додати питання цієї роботи в банк</button><button class="btn" data-act="bank-pull">⬇ Скласти блоки з банку…</button>' +
+      '<button class="btn ghost" data-act="bank">Відкрити банк</button></div></div>';
+  }
+  async function bankAddCurrent() {
+    const t = S.cur;
+    if (S.dirty && !(await saveCur())) return;
+    const topic = prompt('Тема для цих питань у банку (наприклад, «Клітина»):', t.topic || t.title || ''); if (topic == null) return;
+    const items = [];
+    t.sections.forEach(s => (s.questions || []).forEach(q => { const c = JSON.parse(JSON.stringify(q)); delete c.ai; delete c.id; items.push({ type: s.type, topic: topic.trim(), grade: gradeOfGroups(t), subject: t.subject || '', q: c }); }));
+    if (!items.length) return toast('У роботі немає питань', true);
+    try {
+      let add = 0, skip = 0;
+      for (let i = 0; i < items.length; i += 30) { const r = await api('t_bank_save', { items: JSON.stringify(items.slice(i, i + 30)) }); add += r.added; skip += r.skipped; }
+      toast('У банк додано: ' + add + (skip ? ', уже були: ' + skip : ''));
+    } catch (e) { if (e.message !== 'pin') toast('Не вдалося: ' + e.message, true); }
+  }
+  function modal(html) {
+    let m = $('#xm'); if (!m) { m = document.createElement('div'); m.id = 'xm'; document.body.appendChild(m); }
+    m.className = 'rd-back'; m.innerHTML = '<div class="rd-panel" style="max-width:640px">' + html + '</div>'; return m;
+  }
+  const closeModal = () => { const m = $('#xm'); if (m) m.remove(); };
+  async function bankPull() {
+    toast('Завантажую банк…');
+    try { await bankLoad(); } catch (e) { if (e.message !== 'pin') toast(e.message, true); return; }
+    if (!BANK.length) return toast('Банк порожній. Спершу додайте питання кнопкою «Додати питання цієї роботи в банк».', true);
+    const topics = {}; BANK.forEach(b => { const k = b.topic || '(без теми)'; topics[k] = (topics[k] || 0) + 1; });
+    const types = Object.keys(TYPES).filter(k => BANK.some(b => b.type === k));
+    modal('<h2 style="margin-top:0">⬇ Скласти з банку</h2><label class="f">Теми (можна кілька)</label><div id="bp-topics" style="max-height:200px;overflow:auto;border:1px solid #dcd9ce;border-radius:8px;padding:6px 10px">' +
+      Object.keys(topics).sort((a, b) => a.localeCompare(b, 'uk')).map(k => '<label style="display:flex;gap:8px;align-items:center;padding:3px 0"><input type="checkbox" class="bp-t" value="' + esc(k) + '" checked> ' + esc(k) + ' <span class="muted">(' + topics[k] + ')</span></label>').join('') + '</div>' +
+      '<label class="f" style="margin-top:10px">Скільки питань кожного типу (випадково; питання, що вже є в роботі, пропускаються)</label>' +
+      types.map(k => '<div style="display:flex;gap:10px;align-items:center;margin:4px 0"><span style="flex:1">' + esc(TYPES[k].name) + ' <span class="muted">· доступно <b data-av="' + k + '">0</b></span></span><input type="number" min="0" max="30" value="0" id="bp-n-' + k + '" style="width:80px"></div>').join('') +
+      '<div class="row" style="margin-top:14px"><button class="btn" data-act="bank-do">Додати в роботу</button><button class="btn ghost" data-act="modal-close">Скасувати</button></div>');
+    const upd = () => { const sel = bpSel(); types.forEach(k => { $('[data-av="' + k + '"]').textContent = BANK.filter(b => b.type === k && sel.has(b.topic || '(без теми)')).length; }); };
+    $('#bp-topics').addEventListener('change', upd); upd();
+  }
+  const bpSel = () => new Set([...document.querySelectorAll('.bp-t:checked')].map(x => x.value));
+  function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function insertBank(t, byType) {
+    let added = 0;
+    Object.keys(byType).forEach(type => {
+      const list = byType[type]; if (!list.length || !TYPES[type]) return;
+      const sec = Object.assign({ type, questions: [] }, JSON.parse(JSON.stringify(TYPES[type].def)));
+      t.sections.push(sec);
+      list.forEach(src => { const q = JSON.parse(JSON.stringify(src)); if (type !== 'tf') q.id = uid(PREFIX[type]); sec.questions.push(q); added++; });
+      if (type === 'tf') { sec.count = Math.min(4, sec.questions.length); sec.n = Math.max(1, Math.floor(sec.questions.length / sec.count)); }
+      else sec.n = sec.questions.length;
+    });
+    return added;
+  }
+  function bankDo() {
+    const t = S.cur, sel = bpSel(), have = new Set();
+    t.sections.forEach(s => (s.questions || []).forEach(q => have.add(s.type + '|' + qPrev(q).toLowerCase())));
+    const byType = {};
+    Object.keys(TYPES).forEach(k => {
+      const el = $('#bp-n-' + k); if (!el) return;
+      const n = Math.max(0, parseInt(el.value, 10) || 0); if (!n) return;
+      const pool = shuffle(BANK.filter(b => b.type === k && sel.has(b.topic || '(без теми)') && !have.has(k + '|' + qPrev(b.q).toLowerCase())));
+      byType[k] = pool.slice(0, n).map(b => b.q);
+    });
+    const added = insertBank(t, byType);
+    closeModal();
+    if (!added) return toast('Нічого не додано: немає підходящих питань', true);
+    markDirty(); showEdit(); toast('Додано питань з банку: ' + added + '. Не забудьте зберегти.');
+  }
+  async function showBank() {
+    stopMon(); S.view = 'bank'; S.bsel = new Set(); S.bf = S.bf || { topic: '', type: '', q: '' };
+    app.innerHTML = topbar('<button class="btn ghost" data-act="back">← Список</button>') + '<div class="wrap"><h1>Банк питань</h1><div class="panel" id="bkbody"><div class="empty">Завантаження…</div></div></div>';
+    try { await bankLoad(); } catch (e) { if (e.message !== 'pin') $('#bkbody').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
+    drawBank();
+  }
+  function bankFiltered() {
+    const f = S.bf, q = f.q.toLowerCase();
+    return BANK.filter(b => (!f.topic || (b.topic || '(без теми)') === f.topic) && (!f.type || b.type === f.type) && (!q || qPrev(b.q).toLowerCase().includes(q)));
+  }
+  function drawBank() {
+    if (S.view !== 'bank') return;
+    const topics = Array.from(new Set(BANK.map(b => b.topic || '(без теми)'))).sort((a, b) => a.localeCompare(b, 'uk')), types = Object.keys(TYPES).filter(k => BANK.some(b => b.type === k));
+    $('#bkbody').innerHTML = !BANK.length ? '<div class="empty">Банк порожній. У редакторі роботи натисніть «Додати питання цієї роботи в банк».</div>' :
+      '<div class="filters"><div><label class="f">Тема</label><select id="bk-t"><option value="">Усі</option>' + topics.map(x => '<option' + (x === S.bf.topic ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></div>' +
+      '<div><label class="f">Тип</label><select id="bk-ty"><option value="">Усі</option>' + types.map(k => '<option value="' + k + '"' + (k === S.bf.type ? ' selected' : '') + '>' + esc(TYPES[k].name) + '</option>').join('') + '</select></div>' +
+      '<div style="flex:1 1 200px"><label class="f">Пошук</label><input id="bk-q" style="width:100%" value="' + esc(S.bf.q) + '" placeholder="текст питання…"></div></div>' +
+      '<div class="row" style="margin:10px 0"><button class="btn ghost sm" data-act="bk-all">Вибрати всі показані</button><button class="btn ghost sm" data-act="bk-topic">Змінити тему вибраних</button><button class="btn ghost sm" data-act="bk-del">Видалити вибрані</button><span class="muted" id="bk-cnt"></span></div><div id="bklist"></div>';
+    if (!BANK.length) return;
+    $('#bk-t').onchange = e => { S.bf.topic = e.target.value; drawBankList(); }; $('#bk-ty').onchange = e => { S.bf.type = e.target.value; drawBankList(); }; $('#bk-q').oninput = e => { S.bf.q = e.target.value; drawBankList(); };
+    drawBankList();
+  }
+  function drawBankList() {
+    const list = bankFiltered();
+    $('#bklist').innerHTML = list.slice(0, 300).map(b => '<label class="bk-row"><input type="checkbox" data-bk="' + esc(b.id) + '"' + (S.bsel.has(b.id) ? ' checked' : '') + '><div style="flex:1">' + esc(qPrev(b.q)) +
+      '<div class="tp">' + esc((TYPES[b.type] || {}).name || b.type) + ' · тема: ' + esc(b.topic || '—') + (b.grade ? ' · ' + esc(b.grade) + ' кл.' : '') + (b.subject ? ' · ' + esc(b.subject) : '') + '</div></div></label>').join('') + (list.length > 300 ? '<div class="muted">Показано перші 300 з ' + list.length + '. Уточніть фільтр.</div>' : '') || '<div class="empty">Нічого не знайдено.</div>';
+    $('#bk-cnt').textContent = 'Показано: ' + list.length + ' · вибрано: ' + S.bsel.size;
+  }
+  document.addEventListener('change', e => {
+    const c = e.target.closest && e.target.closest('input[data-bk]'); if (!c || S.view !== 'bank') return;
+    if (c.checked) S.bsel.add(c.dataset.bk); else S.bsel.delete(c.dataset.bk);
+    $('#bk-cnt').textContent = $('#bk-cnt').textContent.replace(/вибрано: \d+/, 'вибрано: ' + S.bsel.size);
+  });
+
+  /* ---------- резервна копія ---------- */
+  async function doBackup() {
+    toast('Готую копію… це може тривати до хвилини');
+    try {
+      const r = await api('t_backup');
+      const blob = new Blob([JSON.stringify(r)], { type: 'application/json' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'samostiini-backup-' + String(r.date || '').slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove();
+      toast('Копію збережено: робіт ' + r.tests.length + ', схем розсадки ' + Object.keys(r.seats || {}).length + ', питань у банку ' + (r.bank || []).length + (r.skipped && r.skipped.length ? '. Не вдалося прочитати: ' + r.skipped.length : ''), !!(r.skipped && r.skipped.length));
+    } catch (e) { if (e.message !== 'pin') toast('Не вдалося зробити копію: ' + e.message, true); }
+  }
+  function doRestore() {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) return;
+      let d; try { d = JSON.parse(await f.text()); } catch (e) { return toast('Файл не схожий на копію (не читається JSON)', true); }
+      if (!d || d.kind !== 'samostiini-backup' || !Array.isArray(d.tests)) return toast('Це не файл резервної копії цього сайту', true);
+      if (!confirm('Відновити з копії від ' + (d.date || '?') + '?\nРобіт: ' + d.tests.length + ', схем розсадки: ' + Object.keys(d.seats || {}).length + ', питань у банку: ' + (d.bank || []).length +
+        '\n\nРоботи з тими самими ID буде ПЕРЕЗАПИСАНО версіями з копії. Результати учнів не змінюються.')) return;
+      let ok = 0, bad = [];
+      try {
+        for (const x of d.tests) {
+          toast('Відновлюю роботи: ' + (ok + bad.length + 1) + ' з ' + d.tests.length + '…');
+          try { await api('t_save', { id: x.id, json: JSON.stringify(x.test) }); if (x.folder) await api('t_folder', { id: x.id, folder: x.folder }); ok++; }
+          catch (e) { if (e.message === 'pin') return; bad.push((x.test && x.test.title) || x.id); }
+        }
+        for (const cls of Object.keys(d.seats || {})) await api('t_seat_save', { cls, json: JSON.stringify(d.seats[cls]) });
+        const items = (d.bank || []).map(b => ({ type: b.type, topic: b.topic, grade: b.grade, subject: b.subject, q: b.q }));
+        for (let i = 0; i < items.length; i += 30) await api('t_bank_save', { items: JSON.stringify(items.slice(i, i + 30)) });
+        toast('Відновлено робіт: ' + ok + (bad.length ? '. Не вдалося: ' + bad.join(', ') : ''), bad.length > 0);
+        showList();
+      } catch (e) { if (e.message !== 'pin') toast('Помилка відновлення: ' + e.message, true); }
+    };
+    inp.click();
+  }
+
   /* ---------- дії ---------- */
   function move(arr, i, d) { const j = i + d; if (j < 0 || j >= arr.length) return false; [arr[i], arr[j]] = [arr[j], arr[i]]; return true; }
   function needSave(fn) { return async () => { if (S.dirty && !(await saveCur())) return; fn(); }; }
@@ -944,6 +1166,35 @@
     const a = b.dataset.act, si = +b.dataset.s, qi = +b.dataset.q, i = +b.dataset.i, t = S.cur;
     switch (a) {
       /* список */
+      case 'qctl': {
+        const tt = S.tests.find(x => x.id === b.dataset.id); if (!tt) return;
+        const k = b.dataset.k;
+        if (k === 'close' && !confirm('Закрити роботу «' + (tt.title || '') + '»? Учні, що зараз пишуть, будуть зупинені.')) return;
+        try { const r = await api('t_ctrl', { id: tt.id, kind: k, min: 5 }); tt.ctrl = r.ctrl; drawTests(); toast({ open: 'Відкрито: ' + (tt.title || ''), pause: 'Пауза', close: 'Закрито' }[k] || 'Готово'); }
+        catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+        return; }
+      case 'bank': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return showBank();
+      case 'backup': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return doBackup();
+      case 'restore': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return doRestore();
+      case 'q-an': return showAnalysis();
+      case 'an-close': { const m = $('#an'); if (m) m.remove(); return; }
+      case 'modal-close': return closeModal();
+      case 'bank-add': return bankAddCurrent();
+      case 'bank-pull': return bankPull();
+      case 'bank-do': return bankDo();
+      case 'bk-all': bankFiltered().forEach(x => S.bsel.add(x.id)); return drawBankList();
+      case 'bk-del': {
+        if (!S.bsel.size) return toast('Спершу виберіть питання', true);
+        if (!confirm('Видалити з банку вибрані питання (' + S.bsel.size + ')? Самі роботи не зміняться.')) return;
+        try { await api('t_bank_del', { ids: JSON.stringify([...S.bsel]) }); BANK = BANK.filter(x => !S.bsel.has(x.id)); S.bsel = new Set(); drawBank(); toast('Видалено'); }
+        catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+        return; }
+      case 'bk-topic': {
+        if (!S.bsel.size) return toast('Спершу виберіть питання', true);
+        const v = prompt('Нова тема для вибраних питань (' + S.bsel.size + '):'); if (v == null) return;
+        try { await api('t_bank_topic', { ids: JSON.stringify([...S.bsel]), topic: v }); BANK.forEach(x => { if (S.bsel.has(x.id)) x.topic = v.trim().slice(0, 60); }); drawBank(); toast('Тему змінено'); }
+        catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+        return; }
       case 'fold-pick': try { localStorage.setItem('test_folder', b.dataset.f || ''); } catch (e) {} return drawTests();
       case 'tfold': {
         const tt = S.tests.find(x => x.id === b.dataset.id); if (!tt) return;
