@@ -568,7 +568,7 @@
   }
 
   /* ---------- генерація питань ШІ (Gemini через Apps Script) ---------- */
-  const AI_ROWS = [['mcq', 'Одна правильна', 5], ['multi', 'Кілька правильних', 2], ['match', 'Відповідність', 1], ['open', 'Розгорнута відповідь', 2], ['short', 'Коротка відповідь', 0], ['tf', 'Так / Ні (твердження)', 0]];
+  const AI_ROWS = [['mcq', 'Одна правильна', 5], ['multi', 'Кілька правильних', 2], ['match', 'Відповідність', 1], ['open', 'Розгорнута відповідь', 2], ['short', 'Коротка відповідь', 0], ['tf', 'Так / Ні (твердження)', 0], ['order', 'Порядок (розташуй)', 0], ['cloze', 'Заповни пропуски', 0], ['num', 'Числова відповідь', 0], ['group', 'Розподіл по групах', 0], ['find', 'Знайди в тексті', 0]];
   function aiPanel(t) {
     return '<div class="panel aipanel"><h2>🤖 Згенерувати питання з файлу (ШІ)</h2>' +
       '<p class="help">Завантажте PDF презентації чи уроку — ШІ запропонує питання. Усе потрапить у нові блоки з позначкою «ШІ — перевірте»: перегляньте й виправте перед видачею.</p>' +
@@ -713,6 +713,11 @@
           else if (type === 'match') q.pairs = x.pairs;
           else if (type === 'short') q.acc = x.acc;
           else if (type === 'open') { q.max = x.max || 2; q.concepts = x.concepts; }
+          else if (type === 'order') q.items = x.items;
+          else if (type === 'cloze') q.extra = x.extra || [];
+          else if (type === 'num') { q.ans = x.ans; q.tol = x.tol || 0; q.unit = x.unit || ''; }
+          else if (type === 'group') { q.cats = x.cats; q.items = x.items; }
+          else if (type === 'find') q.passage = x.passage;
         }
         sec.questions.push(q); added++;
       });
@@ -1036,6 +1041,12 @@
         else if (type === 'multi') body += x.o.map((o, k) => '<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" data-ap="multi.' + i + '.c.' + k + '"' + (x.c.includes(k) ? ' checked' : '') + ' title="правильний">' + inp('o.' + k, o) + '</div>').join('');
         else if (type === 'short') body += '<div class="muted" style="font-size:13px;margin-top:4px">Прийнятні відповіді (через крапку з комою)</div>' + inp('acc', x.acc.join('; '));
         else if (type === 'match') body += x.pairs.map((p, k) => '<div style="display:flex;gap:6px;margin-top:4px">' + inp('pairs.' + k + '.0', p[0]) + '<span>→</span>' + inp('pairs.' + k + '.1', p[1]) + '</div>').join('');
+        else if (type === 'order') body += '<div class="muted" style="font-size:13px;margin-top:4px">Правильний порядок (зверху вниз; учню покажуть перемішаним)</div>' + x.items.map((o, k) => '<div style="margin-top:4px">' + inp('items.' + k, o) + '</div>').join('');
+        else if (type === 'cloze') body += '<div class="muted" style="font-size:13px;margin-top:4px">Пропуски — слова в [[подвійних дужках]]. Зайві слова (через крапку з комою):</div>' + inp('extra', (x.extra || []).join('; '));
+        else if (type === 'num') body += '<div style="display:flex;gap:8px;margin-top:6px"><label style="font-size:13px">Відповідь<br>' + inp('ans', x.ans) + '</label><label style="font-size:13px">Допуск ±<br>' + inp('tol', x.tol) + '</label><label style="font-size:13px">Одиниці<br>' + inp('unit', x.unit) + '</label></div>';
+        else if (type === 'group') body += '<div class="muted" style="font-size:13px;margin-top:4px">Групи</div><div style="display:flex;gap:6px">' + x.cats.map((c, k) => inp('cats.' + k, c)).join('') + '</div>' +
+          x.items.map((it, k) => '<div style="display:flex;gap:6px;margin-top:4px">' + inp('items.' + k + '.t', it.t) + '<select data-ap="group.' + i + '.items.' + k + '.c">' + x.cats.map((c, ci) => '<option value="' + ci + '"' + (ci === it.c ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>').join('');
+        else if (type === 'find') body += '<div class="muted" style="font-size:13px;margin-top:4px">Текст; шукані слова — в *зірочках*</div><textarea data-ap="find.' + i + '.passage" rows="3" style="width:100%">' + esc(x.passage) + '</textarea>';
         else if (type === 'open') body += x.concepts.map((c, k) => '<div style="display:flex;gap:6px;margin-top:4px">' + inp('concepts.' + k + '.n', c.n, 'що має бути названо') + inp('concepts.' + k + '.k', c.k, 'корені слів') + '</div>').join('');
       }
       h += '<div class="aq" style="border:1px solid #dcd9ce;border-radius:10px;padding:10px;margin:8px 0"><label style="display:flex;gap:8px;align-items:center;font-weight:700;margin-bottom:6px"><input type="checkbox" data-keep="' + type + '.' + i + '" checked> ' + esc(TYPES[type].name) + (x.src ? ' <span class="muted" style="font-weight:500">· ' + esc(x.src) + '</span>' : '') + '</label>' + body + '</div>';
@@ -1053,6 +1064,9 @@
       const f = p.slice(2); let v = el.type === 'checkbox' ? el.checked : el.value;
       if (type === 'multi' && f[0] === 'c') { x.c = x.c || []; const k = +f[1]; x.c = x.c.filter(a => a !== k); if (v) x.c.push(k); return; }
       if (type === 'tf' && f[0] === 'c') { x.c = v === '1'; return; }
+      if (type === 'cloze' && f[0] === 'extra') { x.extra = String(v).split(';').map(a => a.trim()).filter(Boolean); return; }
+      if (type === 'num' && (f[0] === 'ans' || f[0] === 'tol')) { x[f[0]] = parseFloat(String(v).replace(',', '.')); return; }
+      if (type === 'group' && f[0] === 'items' && f[2] === 'c') { x.items[+f[1]].c = parseInt(v, 10); return; }
       if (type === 'short' && f[0] === 'acc') { x.acc = String(v).split(';').map(a => a.trim()).filter(Boolean); return; }
       let o = x; for (let k = 0; k < f.length - 1; k++) o = o[f[k]];
       o[f[f.length - 1]] = v;
@@ -1063,6 +1077,12 @@
     out.mcq = out.mcq.filter(x => x.text && x.o.every(a => a.trim()));
     out.multi = out.multi.filter(x => x.text && x.c.length && x.c.length < x.o.length);
     out.short = out.short.filter(x => x.text && x.acc.length);
+    out.order = out.order.filter(x => x.text && x.items.every(a => a.trim()) && x.items.length >= 3);
+    out.cloze = out.cloze.filter(x => /\[\[[^\]]+\]\]/.test(x.text));
+    out.num = out.num.filter(x => x.text && isFinite(x.ans) && !(x.tol < 0));
+    out.num.forEach(x => { if (!isFinite(x.tol)) x.tol = 0; });
+    out.group = out.group.filter(x => x.text && x.cats.every(a => a.trim()) && x.items.every(it => it.t.trim()));
+    out.find = out.find.filter(x => /\*[^*]+\*/.test(x.passage));
     const t = S.cur, added = aiInsert(t, out);
     closeModal(); AIREV = null;
     if (!added) return toast('Нічого не додано', true);
