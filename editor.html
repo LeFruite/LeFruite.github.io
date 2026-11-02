@@ -568,7 +568,8 @@
   }
 
   /* ---------- генерація питань ШІ (Gemini через Apps Script) ---------- */
-  const AI_ROWS = [['mcq', 'Одна правильна', 5], ['multi', 'Кілька правильних', 2], ['match', 'Відповідність', 1], ['open', 'Розгорнута відповідь', 2], ['short', 'Коротка відповідь', 0], ['tf', 'Так / Ні (твердження)', 0], ['order', 'Порядок (розташуй)', 0], ['cloze', 'Заповни пропуски', 0], ['num', 'Числова відповідь', 0], ['group', 'Розподіл по групах', 0], ['find', 'Знайди в тексті', 0]];
+  const AI_ROWS = [['mcq', 'Одна правильна', 5], ['multi', 'Кілька правильних', 2], ['match', 'Відповідність', 1], ['open', 'Розгорнута відповідь', 2], ['short', 'Коротка відповідь', 0], ['tf', 'Так / Ні (твердження)', 0], ['order', 'Порядок (розташуй)', 0], ['cloze', 'Заповни пропуски', 0], ['num', 'Числова відповідь', 0], ['group', 'Розподіл по групах', 0], ['find', 'Знайди в тексті', 0], ['pmcq', 'Питання про малюнок (одна правильна)', 0], ['label', 'Підпиши малюнок', 0], ['tap', 'Знайди на малюнку', 0]]
+  const AIN = Object.fromEntries(AI_ROWS.map(r => [r[0], r[1]])); let AICTX = { imgs: [], first: 1 };;
   function aiPanel(t) {
     return '<div class="panel aipanel"><h2>🤖 Згенерувати питання з файлу (ШІ)</h2>' +
       '<p class="help">Завантажте PDF презентації чи уроку — ШІ запропонує питання. Усе потрапить у нові блоки з позначкою «ШІ — перевірте»: перегляньте й виправте перед видачею.</p>' +
@@ -625,7 +626,10 @@
       if (!file && photos.length) { say('Готую фото…'); imgs = await Promise.all(photos.slice(0, 20).map(photoB64)); }
       const mb = imgs.reduce((a, x) => a + x.length, 0) / 1048576;
       say('Надсилаю ШІ' + (imgs.length ? ' (' + imgs.length + ' стор., ' + mb.toFixed(1) + ' МБ)' : '') + '… Це може тривати до 1–2 хвилин, не закривайте сторінку.');
-      const spec = { counts, level: $('#ai-level').value, grade: $('#ai-grade').value.trim(), subject: t.subject || '', extra: $('#ai-extra').value.trim(), firstPage: first };
+      const picN = (counts.pmcq || 0) + (counts.label || 0) + (counts.tap || 0);
+      if (picN && !imgs.length) throw new Error('Питання про малюнки потребують PDF або фото: ШІ має побачити сторінки. Приберіть їх або додайте файл.');
+      AICTX = { imgs, first };
+      const spec = { hasImages: imgs.length > 0, counts, level: $('#ai-level').value, grade: $('#ai-grade').value.trim(), subject: t.subject || '', extra: $('#ai-extra').value.trim(), firstPage: first };
       const prep = await api('t_ai_prep', { spec: JSON.stringify(spec) });
       const parts = [{ text: prep.prompt }];
       if (text) parts.push({ text: 'ТЕКСТ МАТЕРІАЛУ (витягнуто з файлу, може бути неповним):\n' + text.slice(0, 120000) });
@@ -700,15 +704,19 @@
     let added = 0;
     AI_ROWS.forEach(([type]) => {
       const list = data[type] || []; if (!list.length) return;
-      const sec = Object.assign({ type, questions: [] }, JSON.parse(JSON.stringify(TYPES[type].def)));
+      const secType = type === 'pmcq' ? 'mcq' : type;
+      const sec = Object.assign({ type: secType, questions: [] }, JSON.parse(JSON.stringify(TYPES[secType].def)));
       t.sections.push(sec);
       list.forEach(x => {
         const ai = { src: x.src || '' };
         let q;
         if (type === 'tf') q = { t: x.t, c: !!x.c, ai };
         else {
-          q = { id: uid(PREFIX[type]), text: x.text, ai };
+          q = { id: uid(PREFIX[secType]), text: x.text, ai };
           if (type === 'mcq') q.o = x.o;
+          else if (type === 'pmcq') { q.o = x.o; q.img = x.img || ''; }
+          else if (type === 'label') { q.img = x.img || ''; q.imgCap = ''; q.marks = x.marks; q.extra = x.extra || []; }
+          else if (type === 'tap') { q.img = x.img || ''; q.imgCap = ''; q.targets = x.targets; }
           else if (type === 'multi') { q.o = x.o; q.c = x.c; }
           else if (type === 'match') q.pairs = x.pairs;
           else if (type === 'short') q.acc = x.acc;
@@ -1027,6 +1035,12 @@
 
   /* ---------- перегляд і правка питань ШІ ДО додавання в роботу ---------- */
   let AIREV = null;
+  function aiThumb(page, dots) {
+    const b = AICTX.imgs[page - AICTX.first];
+    if (!b) return '<div class="err" style="font-size:13px;margin-top:6px">Слайда №' + esc(page) + ' немає серед надісланих — таке питання буде пропущено.</div>';
+    return '<div style="position:relative;display:inline-block;max-width:100%;margin-top:6px"><img src="data:image/jpeg;base64,' + b + '" style="max-width:100%;max-height:260px;display:block;border-radius:6px;border:1px solid #dcd9ce">' +
+      (dots || []).map((d, k) => '<span style="position:absolute;left:' + (d.x * 100) + '%;top:' + (d.y * 100) + '%;transform:translate(-50%,-50%);background:#e0245e;color:#fff;border-radius:50%;width:20px;height:20px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff">' + (k + 1) + '</span>').join('') + '</div>';
+  }
   function aiReview(data) {
     AIREV = data;
     let n = 0, h = '';
@@ -1041,6 +1055,14 @@
         else if (type === 'multi') body += x.o.map((o, k) => '<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" data-ap="multi.' + i + '.c.' + k + '"' + (x.c.includes(k) ? ' checked' : '') + ' title="правильний">' + inp('o.' + k, o) + '</div>').join('');
         else if (type === 'short') body += '<div class="muted" style="font-size:13px;margin-top:4px">Прийнятні відповіді (через крапку з комою)</div>' + inp('acc', x.acc.join('; '));
         else if (type === 'match') body += x.pairs.map((p, k) => '<div style="display:flex;gap:6px;margin-top:4px">' + inp('pairs.' + k + '.0', p[0]) + '<span>→</span>' + inp('pairs.' + k + '.1', p[1]) + '</div>').join('');
+        else if (type === 'pmcq' || type === 'label' || type === 'tap') {
+          const dots = type === 'label' ? x.marks : type === 'tap' ? x.targets : [];
+          body += '<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label style="font-size:13px">Слайд №&nbsp;<input type="number" min="1" data-ap="' + type + '.' + i + '.page" value="' + esc(x.page) + '" style="width:70px"></label></div>' + aiThumb(x.page, dots);
+          if (type === 'pmcq') body += x.o.map((o, k) => '<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><span>' + (k ? '✗' : '✓') + '</span>' + inp('o.' + k, o) + '</div>').join('');
+          else if (type === 'label') body += '<div class="muted" style="font-size:13px;margin-top:4px">Підписи до міток 1, 2, 3… (положення можна поправити в редакторі після додавання)</div>' + x.marks.map((m, k) => '<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><b>' + (k + 1) + '</b>' + inp('marks.' + k + '.a', m.a) + '</div>').join('') +
+            '<div class="muted" style="font-size:13px;margin-top:4px">Зайві підписи (через крапку з комою)</div>' + inp('extra', (x.extra || []).join('; '));
+          else body += '<div class="muted" style="font-size:13px;margin-top:4px">Правильне місце позначено червоною цяткою (можна поправити в редакторі після додавання)</div>';
+        }
         else if (type === 'order') body += '<div class="muted" style="font-size:13px;margin-top:4px">Правильний порядок (зверху вниз; учню покажуть перемішаним)</div>' + x.items.map((o, k) => '<div style="margin-top:4px">' + inp('items.' + k, o) + '</div>').join('');
         else if (type === 'cloze') body += '<div class="muted" style="font-size:13px;margin-top:4px">Пропуски — слова в [[подвійних дужках]]. Зайві слова (через крапку з комою):</div>' + inp('extra', (x.extra || []).join('; '));
         else if (type === 'num') body += '<div style="display:flex;gap:8px;margin-top:6px"><label style="font-size:13px">Відповідь<br>' + inp('ans', x.ans) + '</label><label style="font-size:13px">Допуск ±<br>' + inp('tol', x.tol) + '</label><label style="font-size:13px">Одиниці<br>' + inp('unit', x.unit) + '</label></div>';
@@ -1049,14 +1071,14 @@
         else if (type === 'find') body += '<div class="muted" style="font-size:13px;margin-top:4px">Текст; шукані слова — в *зірочках*</div><textarea data-ap="find.' + i + '.passage" rows="3" style="width:100%">' + esc(x.passage) + '</textarea>';
         else if (type === 'open') body += x.concepts.map((c, k) => '<div style="display:flex;gap:6px;margin-top:4px">' + inp('concepts.' + k + '.n', c.n, 'що має бути названо') + inp('concepts.' + k + '.k', c.k, 'корені слів') + '</div>').join('');
       }
-      h += '<div class="aq" style="border:1px solid #dcd9ce;border-radius:10px;padding:10px;margin:8px 0"><label style="display:flex;gap:8px;align-items:center;font-weight:700;margin-bottom:6px"><input type="checkbox" data-keep="' + type + '.' + i + '" checked> ' + esc(TYPES[type].name) + (x.src ? ' <span class="muted" style="font-weight:500">· ' + esc(x.src) + '</span>' : '') + '</label>' + body + '</div>';
+      h += '<div class="aq" style="border:1px solid #dcd9ce;border-radius:10px;padding:10px;margin:8px 0"><label style="display:flex;gap:8px;align-items:center;font-weight:700;margin-bottom:6px"><input type="checkbox" data-keep="' + type + '.' + i + '" checked> ' + esc(AIN[type]) + (x.src ? ' <span class="muted" style="font-weight:500">· ' + esc(x.src) + '</span>' : '') + '</label>' + body + '</div>';
     }));
     if (!n) { toast('ШІ не повернув жодного питання', true); return; }
     const m = modal('<h2 style="margin-top:0">Перегляд питань (' + n + ')</h2><p class="muted" style="font-size:14px">Виправте текст і відповіді, зніміть позначку з зайвих — і додайте в роботу. Нічого не збережено, поки ви не натиснете «Додати».</p>' +
       '<div style="max-height:62vh;overflow:auto">' + h + '</div><div class="row" style="margin-top:12px"><button class="btn" data-act="ai-accept">Додати вибрані в роботу</button><button class="btn ghost" data-act="modal-close">Відхилити всі</button></div>');
     m.firstChild.style.maxWidth = '860px';
   }
-  function aiAccept() {
+  async function aiAccept() {
     const d = AIREV; if (!d) return;
     document.querySelectorAll('#xm [data-ap]').forEach(el => {
       const p = el.dataset.ap.split('.'), type = p[0], i = +p[1], x = d[type][i];
@@ -1064,6 +1086,8 @@
       const f = p.slice(2); let v = el.type === 'checkbox' ? el.checked : el.value;
       if (type === 'multi' && f[0] === 'c') { x.c = x.c || []; const k = +f[1]; x.c = x.c.filter(a => a !== k); if (v) x.c.push(k); return; }
       if (type === 'tf' && f[0] === 'c') { x.c = v === '1'; return; }
+      if (f[0] === 'page') { x.page = parseInt(v, 10) || 0; return; }
+      if ((type === 'label') && f[0] === 'extra') { x.extra = String(v).split(';').map(a => a.trim()).filter(Boolean); return; }
       if (type === 'cloze' && f[0] === 'extra') { x.extra = String(v).split(';').map(a => a.trim()).filter(Boolean); return; }
       if (type === 'num' && (f[0] === 'ans' || f[0] === 'tol')) { x[f[0]] = parseFloat(String(v).replace(',', '.')); return; }
       if (type === 'group' && f[0] === 'items' && f[2] === 'c') { x.items[+f[1]].c = parseInt(v, 10); return; }
@@ -1077,12 +1101,28 @@
     out.mcq = out.mcq.filter(x => x.text && x.o.every(a => a.trim()));
     out.multi = out.multi.filter(x => x.text && x.c.length && x.c.length < x.o.length);
     out.short = out.short.filter(x => x.text && x.acc.length);
+    out.pmcq = out.pmcq.filter(x => x.text && x.o.every(a => a.trim()));
     out.order = out.order.filter(x => x.text && x.items.every(a => a.trim()) && x.items.length >= 3);
     out.cloze = out.cloze.filter(x => /\[\[[^\]]+\]\]/.test(x.text));
     out.num = out.num.filter(x => x.text && isFinite(x.ans) && !(x.tol < 0));
     out.num.forEach(x => { if (!isFinite(x.tol)) x.tol = 0; });
     out.group = out.group.filter(x => x.text && x.cats.every(a => a.trim()) && x.items.every(it => it.t.trim()));
     out.find = out.find.filter(x => /\*[^*]+\*/.test(x.passage));
+    // малюнки: потрібні слайди завантажуються на Диск і прив'язуються до питань
+    const need = new Set(); ['pmcq', 'label', 'tap'].forEach(k => out[k].forEach(x => need.add(x.page)));
+    if (need.size) {
+      const urls = {};
+      try {
+        let n = 0;
+        for (const pg of need) {
+          const b = AICTX.imgs[pg - AICTX.first]; if (!b) continue;
+          toast('Завантажую слайди на Диск: ' + (++n) + ' з ' + need.size + '…');
+          urls[pg] = (await api('t_img', { name: 'slide-' + pg, mime: 'image/jpeg', data: b })).url;
+        }
+      } catch (e) { if (e.message !== 'pin') toast('Не вдалося завантажити слайд: ' + e.message, true); return; }
+      ['pmcq', 'label', 'tap'].forEach(k => { out[k] = out[k].filter(x => urls[x.page]); out[k].forEach(x => { x.img = urls[x.page]; }); });
+      out.label = out.label.filter(x => x.marks.every(m => String(m.a).trim()));
+    }
     const t = S.cur, added = aiInsert(t, out);
     closeModal(); AIREV = null;
     if (!added) return toast('Нічого не додано', true);
