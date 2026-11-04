@@ -358,6 +358,8 @@
     ['🪑', 'Розсадка', 'Схема кабінету, посадка по групах', 'seating.html'],
     ['📁', 'Матеріали', 'Свої HTML-файли для класів', 'materials.html'],
     ['📋', 'Журнал самостійних', 'Результати робіт по класах', 'journal.html'],
+    ['🕒', 'Відпрацювання', 'Призначити дату, автоматична 2', 'makeup.html'],
+    ['📅', 'План занять', 'Теми по датах для класів', 'plan.html'],
     ['📊', 'Оцінки з Extra', 'Таблиця учні × дати', 'grades.html'],
     ['👥', 'Списки груп', 'Учні та групи', 'students.html'],
     ['📡', 'Живий урок', 'Питання в реальному часі', 'live-teacher.html'],
@@ -376,17 +378,28 @@
   async function showList() {
     stopMon(); S.view = 'list'; S.cur = null; S.dirty = false;
     app.innerHTML = topbar(toolsMenu() + '<button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
-      '<div class="wrap"><h1>Роботи</h1><input class="tsearch" id="tq" placeholder="Пошук роботи за назвою, темою чи групою…"><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
+      '<div class="wrap"><div id="mkbar"></div><h1>Роботи</h1><input class="tsearch" id="tq" placeholder="Пошук роботи за назвою, темою чи групою…"><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
     $('#new').onclick = newTest; $('#imp').onclick = () => $('#importpick').click();
     try {
       const r = await api('t_list'); S.tests = r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
     } catch (e) { if (e.message !== 'pin') $('#list').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
     $('#tq').oninput = drawTests;
     drawTests();
+    mkBar();
     monTimer = setInterval(async () => {                       // лічильник відкритих робіт оновлюється сам
       if (S.view !== 'list') return;
       try { const r = await api('t_list'); S.tests = r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated))); drawTests(); } catch (e) {}
     }, 20000);
+  }
+  async function mkBar() {   // нагадування про відпрацювання (заодно виконується перевірка прострочених)
+    try {
+      const r = await api('t_mk_list'), act = r.items.filter(m => m.status === 'pending'), nt = r.items.filter(m => m.notice), el = $('#mkbar');
+      if (!el || S.view !== 'list' || (!act.length && !nt.length)) return;
+      const soon = act.filter(m => m.due <= r.today).length;
+      el.innerHTML = '<a href="makeup.html" class="openbar" style="text-decoration:none;color:inherit;background:' + (nt.length ? '#fbe0dc;border-color:#f0b3aa' : '#fff4e5;border-color:#f3d9a8') + '">' +
+        (nt.length ? '⚠ <b>Не здали вчасно (автоматично 2): ' + nt.map(m => esc(m.name)).join(', ') + '</b> · ' : '') +
+        '🕒 Відпрацювань очікується: <b>' + act.length + '</b>' + (soon ? ' · здати сьогодні: <b>' + soon + '</b>' : '') + ' <span style="margin-left:auto;text-decoration:underline">Відкрити →</span></a>';
+    } catch (e) {}
   }
   const folderOf = t => t.folder || (t.groups && t.groups.length && /^\d+/.test(t.groups[0]) ? t.groups[0].match(/^\d+/)[0] + ' клас' : '') || 'Без класу';
   const folderCmp = (a, b) => a.localeCompare(b, 'uk', { numeric: true });
