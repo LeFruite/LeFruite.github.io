@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Відпрацювання</title>
+<script src="config.js"></script>
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1f7a5a">
+<style>
+  :root { --bg:#f3f1ea; --card:#fff; --ink:#1d2a2e; --muted:#667378; --line:#dcd9ce; --accent:#1f7a5a; --accent-soft:#e3f2ec; --bad:#c0392b; --bad-soft:#fbe0dc; --amber:#b87503; --amber-soft:#fff1d6; --blue:#1b4fd8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .hidden { display:none !important; }
+  .top { background:#12202a; color:#fff; position:sticky; top:0; z-index:5; }
+  .top-in { max-width:1100px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .brand { font-weight:800; font-size:18px; flex:1; }
+  .wrap { max-width:1100px; margin:0 auto; padding:16px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  h1 { margin:0 0 12px; font-size:24px; } h2 { margin:0 0 10px; font-size:18px; }
+  .btn { border:1.5px solid var(--accent); background:var(--accent); color:#fff; border-radius:10px; padding:9px 16px; font:inherit; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn:hover { filter:brightness(.93); } .btn[disabled] { opacity:.45; cursor:default; }
+  .btn.ghost { background:#fff; color:var(--ink); border-color:var(--line); } .btn.ghost:hover { border-color:var(--accent); }
+  .top .btn.ghost { background:transparent; color:#fff; border-color:rgba(255,255,255,.35); }
+  .btn.sm { padding:5px 10px; font-size:14px; border-radius:8px; } .btn.bad { background:#fff; color:var(--bad); border-color:var(--bad); }
+  input, textarea, select { font:inherit; padding:9px 11px; border:1.5px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); max-width:100%; }
+  input:focus, textarea:focus { outline:2px solid #9ec5b6; border-color:var(--accent); }
+  label.f { display:block; font-size:13px; font-weight:700; color:var(--muted); margin:10px 0 3px; }
+  .muted { color:var(--muted); } .err { color:var(--bad); font-weight:600; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; z-index:20; max-width:90vw; }
+  #toast.bad { background:var(--bad); }
+  .notice { background:var(--bad-soft); border:1px solid #f0b3aa; border-radius:12px; padding:12px 14px; margin-bottom:14px; }
+  .notice b { color:var(--bad); }
+  /* пошук */
+  .sbox { position:relative; }
+  #q { width:100%; font-size:18px; padding:12px 14px; }
+  #sug { position:absolute; left:0; right:0; top:100%; background:#fff; border:1.5px solid var(--accent); border-radius:10px; margin-top:4px; z-index:4; box-shadow:0 8px 24px rgba(0,0,0,.15); overflow:hidden; }
+  #sug div { padding:9px 14px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; } #sug div.on, #sug div:hover { background:var(--accent-soft); }
+  #sug small { color:var(--muted); }
+  .stud { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:var(--accent-soft); border-radius:10px; padding:10px 14px; }
+  .stud b { font-size:19px; }
+  .grid2 { display:grid; grid-template-columns:minmax(0,420px) minmax(0,1fr); gap:20px; align-items:start; } @media (max-width:820px) { .grid2 { grid-template-columns:1fr; } }
+  /* календар */
+  .cal-h { display:flex; align-items:center; gap:8px; margin-bottom:6px; } .cal-h b { flex:1; text-align:center; font-size:17px; text-transform:capitalize; }
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal .dow { text-align:center; font-size:12px; color:var(--muted); font-weight:700; padding:2px 0; }
+  .d { position:relative; aspect-ratio:1/1; min-height:44px; border-radius:9px; border:1.5px solid transparent; background:#f6f5ef; display:flex; flex-direction:column; align-items:center; justify-content:center; font-weight:600; cursor:pointer; user-select:none; padding:0; font-size:15px; color:var(--ink); }
+  .d.out { visibility:hidden; } .d.past { color:#a5a99c; background:#faf9f5; cursor:default; } .d.we { color:#9a9a8f; }
+  .d.today { border-color:var(--ink); }
+  .d.abs { background:var(--bad-soft); color:var(--bad); cursor:pointer; border-color:#f0b3aa; } .d.abs.sel { background:var(--bad); color:#fff; border-color:var(--bad); }
+  .d.abs.cov { background:#e8efe9; color:#4c7a62; border-color:#bcd7c6; }
+  .d.due { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .d.has::after { content:""; position:absolute; bottom:4px; width:6px; height:6px; border-radius:50%; background:var(--amber); }
+  .d.mk::before { content:"⏳"; position:absolute; top:1px; right:3px; font-size:11px; }
+  .d small { font-size:10px; font-weight:700; line-height:1; margin-top:1px; }
+  .leg { display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:8px; } .leg i { display:inline-block; width:12px; height:12px; border-radius:4px; vertical-align:-1px; margin-right:4px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; } .chip { border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:4px 12px; font-size:14px; cursor:pointer; } .chip:hover { border-color:var(--accent); }
+  .hint { font-size:13.5px; background:var(--amber-soft); border-radius:8px; padding:6px 10px; margin-top:6px; cursor:pointer; }
+  table { width:100%; border-collapse:collapse; font-size:15px; } th, td { text-align:left; padding:8px 8px; border-bottom:1px solid var(--line); vertical-align:top; } th { font-size:13px; color:var(--muted); }
+  .badge { display:inline-block; border-radius:999px; padding:2px 10px; font-size:13px; font-weight:700; }
+  .b-ok { background:var(--accent-soft); color:var(--accent); } .b-bad { background:var(--bad-soft); color:var(--bad); } .b-amb { background:var(--amber-soft); color:var(--amber); }
+  .gin { width:78px; text-align:center; } .acts { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .scroll { overflow:auto; }
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in"><div class="brand">🕒 Відпрацювання</div>
+  <a class="btn ghost" href="editor.html">← Кабінет</a><a class="btn ghost" href="plan.html">📅 План занять</a><a class="btn ghost" href="grades.html">Оцінки з Extra</a></div></div>
+<div class="wrap" id="app"></div>
+<div id="toast" class="hidden"></div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const SCRIPT_URL = window.SCRIPT_URL || '';
+  const app = $('#app');
+  let PIN = ''; try { PIN = sessionStorage.getItem('pin') || ''; } catch (e) {}
+  const ls = { g(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, s(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const MON = ['січень', 'лютий', 'березень', 'квітень', 'травень', 'червень', 'липень', 'серпень', 'вересень', 'жовтень', 'листопад', 'грудень'];
+
+  const S = { plans: {}, students: [], items: [], today: '', stu: null, info: null, extra: null, extraSt: '', abs: new Map(), sel: new Set(), due: '', ym: null, sug: [], sugI: 0 };
+
+  function toast(m, bad) { const t = $('#toast'); t.textContent = m; t.className = bad ? 'bad' : ''; clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'hidden', bad ? 6000 : 3200); }
+  async function api(action, data) {
+    if (!SCRIPT_URL) throw new Error('Сайт ще не підключено до Google Таблиці (setup.html)');
+    let r; try { r = await fetch(SCRIPT_URL, { method: 'POST', body: new URLSearchParams(Object.assign({ action, pin: PIN }, data || {})) }); } catch (e) { throw new Error('Немає зв\'язку із сервером'); }
+    let j; try { j = await r.json(); } catch (e) { throw new Error('Сервер відповів незрозуміло. Опублікуйте оновлений Code.gs (Нова версія).'); }
+    if (j.error === 'pin') { PIN = ''; try { sessionStorage.removeItem('pin'); } catch (e) {} login('Невірний пін'); throw new Error('pin'); }
+    if (j.error) throw new Error(j.error);
+    return j;
+  }
+  function login(msg) {
+    app.innerHTML = '<div class="panel" style="max-width:380px;margin:40px auto"><h2>Кабінет вчителя</h2><label class="f">Пін-код</label><input type="password" id="pin" style="width:100%"><button class="btn" id="go" style="margin-top:12px;width:100%">Увійти</button><div class="err">' + esc(msg || '') + '</div></div>';
+    const go = async () => { PIN = $('#pin').value; try { await api('t_auth'); try { sessionStorage.setItem('pin', PIN); } catch (e) {} boot(); } catch (e) { if (e.message !== 'pin') login(e.message); } };
+    $('#go').onclick = go; $('#pin').onkeydown = e => { if (e.key === 'Enter') go(); }; $('#pin').focus();
+  }
+
+  /* ---------- дати ---------- */
+  const pad = n => String(n).padStart(2, '0');
+  const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const parse = s => { const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+  const dm = s => s ? s.slice(8, 10) + '.' + s.slice(5, 7) : '';
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+  const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+
+  /* ---------- імена ---------- */
+  const nrm = s => String(s || '').toLowerCase().replace(/[’ʼ`']/g, '').replace(/\s+/g, ' ').trim();
+  function sameName(a, b) {
+    const x = nrm(a).split(' '), y = nrm(b).split(' ');
+    if (!x[0] || x[0] !== y[0]) return false;
+    if (!x[1] || !y[1]) return true;
+    return x[1] === y[1] || ((x[1].length <= 2 || y[1].length <= 2) && x[1][0] === y[1][0]);
+  }
+
+  async function boot() {
+    app.innerHTML = '<div class="panel muted">Завантаження…</div>';
+    try {
+      const [st, ml] = await Promise.all([api('t_stu_get'), api('t_mk_list')]);
+      S.students = []; Object.keys(st.students || {}).forEach(g => st.students[g].forEach(s => S.students.push({ name: s.name, group: g })));
+      S.items = ml.items; S.today = ml.today;
+      try { S.plans = (await api('t_plan_get')).plans || {}; } catch (e) { if (e.message === 'pin') return; S.plans = {}; }
+    } catch (e) { if (e.message !== 'pin') app.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; return; }
+    S.ym = S.today.slice(0, 7);
+    draw();
+  }
+
+  /* ---------- екран ---------- */
+  function draw() {
+    const act = S.items.filter(m => m.status === 'pending');
+    const notices = S.items.filter(m => m.notice);
+    const hist = S.items.filter(m => m.status !== 'pending' && m.status !== 'cancelled');
+    app.innerHTML =
+      (notices.length ? '<div class="notice"><b>⚠ Не здали відпрацювання вчасно — автоматично поставлено 2:</b><ul style="margin:6px 0 8px">' +
+        notices.map(m => '<li><b>' + esc(m.name) + '</b> (' + esc(m.group) + ') — термін був ' + dm(m.due) + (m.topic ? ' · ' + esc(m.topic) : '') + '</li>').join('') +
+        '</ul><button class="btn sm" id="ack">Зрозуміло</button></div>' : '') +
+      '<div class="panel"><h2>Нове відпрацювання</h2>' + formHtml() + '</div>' +
+      '<div class="panel"><h2>Очікують здачі (' + act.length + ')</h2>' + (act.length ? '<div class="scroll"><table><tr><th>Учень</th><th>Термін</th><th>За пропуски</th><th>Тема</th><th>Здав</th><th></th></tr>' + act.map(actRow).join('') + '</table></div>' : '<div class="muted">Немає активних відпрацювань.</div>') + '</div>' +
+      (hist.length ? '<div class="panel"><h2>Історія</h2><div class="scroll"><table><tr><th>Учень</th><th>Результат</th><th>Тема</th><th></th></tr>' + hist.map(histRow).join('') + '</table></div></div>' : '');
+    wire();
+  }
+  function formHtml() {
+    const sbox = '<div class="sbox"><input id="q" placeholder="Почніть вводити прізвище…" autocomplete="off" value="' + (S.stu ? '' : '') + '"><div id="sug" class="hidden"></div></div>';
+    if (!S.stu) return sbox + '<p class="muted" style="margin:8px 0 0">Введіть кілька літер прізвища, оберіть учня — з\'явиться календар з його «Н».</p>' + extraSetup();
+    return sbox.replace('placeholder="Почніть', 'placeholder="Інший учень? Почніть') +
+      '<div class="stud" style="margin-top:10px"><b>' + esc(S.stu.name) + '</b><span class="muted">' + esc(S.stu.group) + '</span><span style="flex:1"></span><span id="nabs" class="badge b-bad"></span></div>' +
+      '<div class="grid2" style="margin-top:12px"><div>' + calHtml() + '</div><div>' +
+        '<label class="f">Дата здачі відпрацювання</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input type="date" id="due" min="' + S.today + '" value="' + esc(S.due) + '"></div>' +
+        '<div id="duetxt" style="margin-top:6px;font-weight:700"></div><div class="chips">' + chipsHtml() + '</div>' +
+        '<label class="f">За які пропуски</label><div id="selabs" class="muted" style="font-size:14px"></div>' +
+        '<label class="f">Тема / коментар (що треба здати)</label><textarea id="topic" rows="4" style="width:100%" placeholder="Наприклад: Будова клітини, параграф 12"></textarea><div id="hints"></div>' +
+        '<div style="margin-top:12px"><button class="btn" id="create">Призначити відпрацювання</button></div></div></div>' + extraSetup();
+  }
+  // швидкі кнопки: п'ятниця цього тижня / наступного (у суботу й неділю «цей тиждень» уже минув)
+  function fridays() {
+    const t = parse(S.today), dow = (t.getDay() + 6) % 7;     // пн = 0
+    const f = n => addDays(S.today, n);
+    return dow > 4 ? { cur: null, next: f(4 - dow + 7) } : { cur: f(4 - dow), next: f(4 - dow + 7) };
+  }
+  function chipsHtml() {
+    const fr = fridays();
+    return '<span class="chip" data-due="' + addDays(S.today, 1) + '">Завтра</span>' +
+      (fr.cur ? '<span class="chip" data-due="' + fr.cur + '">П\'ятниця цього тижня · ' + dm(fr.cur) + '</span>' : '') +
+      '<span class="chip" data-due="' + fr.next + '">П\'ятниця наступного тижня · ' + dm(fr.next) + '</span>';
+  }
+  // що вели в цей день за планом занять: спершу план групи, потім план класу
+  function planFor(group, date) {
+    const g = (String(group).match(/^\d+/) || [''])[0], out = [];
+    [group, g].forEach(k => { if (!out.length && S.plans[k]) S.plans[k].forEach(x => { if (x.d === date) out.push(x.t); }); });
+    return out;
+  }
+  function extraSetup() {
+    if (S.extra || ls.g('gr_url')) return S.extraSt ? '<p class="muted" style="font-size:13px;margin:8px 0 0">' + esc(S.extraSt) + '</p>' : '';
+    return '<details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Підключити таблицю «Н» з Extra (необов\'язково)</summary><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><input id="gu" placeholder="адреса приймача …/exec" style="flex:1;min-width:220px"><input id="gk" type="password" placeholder="ключ"><button class="btn sm" id="gs">Зберегти</button></div></details>';
+  }
+
+  /* ---------- календар ---------- */
+  function calHtml() {
+    const [y, m] = S.ym.split('-').map(Number), first = new Date(y, m - 1, 1), lead = (first.getDay() + 6) % 7, days = new Date(y, m, 0).getDate();
+    const cov = new Set(); (S.info && S.info.existing || []).forEach(x => { if (x.status === 'pending' || x.status === 'done') x.abs.forEach(d => cov.add(d)); });
+    const mkDue = {}; (S.info && S.info.existing || []).forEach(x => { if (x.status === 'pending') mkDue[x.due] = x; });
+    let h = '<div class="cal-h"><button class="btn ghost sm" data-m="-1">◀</button><b>' + MON[m - 1] + ' ' + y + '</b><button class="btn ghost sm" data-m="1">▶</button><button class="btn ghost sm" data-m="0">Сьогодні</button></div><div class="cal">' +
+      ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'].map(x => '<div class="dow">' + x + '</div>').join('');
+    for (let i = 0; i < lead; i++) h += '<div class="d out"></div>';
+    for (let d = 1; d <= days; d++) {
+      const s = y + '-' + pad(m) + '-' + pad(d), dow = (lead + d - 1) % 7, past = s < S.today, a = S.abs.get(s), marks = (S.marksBy && S.marksBy[s]) || [];
+      const c = ['d'];
+      if (past) c.push('past'); if (dow > 4) c.push('we'); if (s === S.today) c.push('today');
+      if (a) { c.push('abs'); if (S.sel.has(s)) c.push('sel'); if (cov.has(s)) c.push('cov'); }
+      if (s === S.due) c.push('due'); if (marks.length) c.push('has'); if (mkDue[s]) c.push('mk');
+      const tip = (a ? 'Н' + (a.l ? ' (урок ' + a.l + ')' : '') + (cov.has(s) ? ' — відпрацювання вже призначено' : '') + '. ' : '') + (mkDue[s] ? 'Термін відпрацювання: ' + (mkDue[s].topic || '') + '. ' : '') + marks.join('; ') + (S.stu && planFor(S.stu.group, s).length ? ' · План: ' + planFor(S.stu.group, s).join('; ') : '');
+      h += '<button type="button" class="' + c.join(' ') + '" data-d="' + s + '" title="' + esc(tip) + '">' + d + (a ? '<small>Н</small>' : '') + '</button>';
+    }
+    h += '</div><div class="leg"><span><i style="background:#fbe0dc;border:1px solid #f0b3aa"></i>Н (клік — вибрати)</span><span><i style="background:#c0392b"></i>вибрано</span><span><i style="background:#e8efe9;border:1px solid #bcd7c6"></i>вже призначено</span><span><i style="background:#1b4fd8"></i>дата здачі</span><span><i style="background:#b87503;border-radius:50%"></i>є оцінки</span></div>';
+    return h;
+  }
+
+  /* ---------- вибір учня ---------- */
+  function suggest(q) {
+    const t = nrm(q).split(' ').filter(Boolean);
+    S.sug = t.length ? S.students.filter(s => { const n = nrm(s.name); return t.every(w => n.split(' ').some(p => p.startsWith(w))); }).slice(0, 8) : [];
+    S.sugI = 0; drawSug();
+  }
+  function drawSug() {
+    const b = $('#sug'); if (!b) return;
+    if (!S.sug.length) { b.className = 'hidden'; return; }
+    b.className = ''; b.innerHTML = S.sug.map((s, i) => '<div class="' + (i === S.sugI ? 'on' : '') + '" data-i="' + i + '"><span>' + esc(s.name) + '</span><small>' + esc(s.group) + '</small></div>').join('');
+  }
+  async function pick(s) {
+    S.stu = s; S.sel = new Set(); S.due = ''; S.info = null; S.abs = new Map(); S.marksBy = {};
+    draw(); const q = $('#q'); if (q) q.value = '';
+    try { S.info = await api('t_mk_info', { group: s.group, name: s.name }); } catch (e) { if (e.message !== 'pin') toast(e.message, true); return; }
+    S.info.abs.forEach(a => S.abs.set(a.d, { l: a.l, src: 'сайт' }));
+    await loadExtra(s);
+    const cov = new Set(); S.info.existing.forEach(x => { if (x.status === 'pending' || x.status === 'done') x.abs.forEach(d => cov.add(d)); });
+    const un = [...S.abs.keys()].filter(d => !cov.has(d)).sort();
+    if (un.length) { S.sel.add(un[un.length - 1]); S.ym = un[un.length - 1].slice(0, 7); } else S.ym = S.today.slice(0, 7);
+    refresh();
+  }
+  async function loadExtra(s) {
+    S.extraSt = '';
+    const u = ls.g('gr_url'), k = ls.g('gr_key'); if (!u || !k) return;
+    try {
+      if (!S.extra) { const r = await fetch(u + (u.includes('?') ? '&' : '?') + 'grades=1&key=' + encodeURIComponent(k)), j = await r.json(); if (j.error) throw new Error(j.error); S.extra = j.classes; }
+      const g = (String(s.group).match(/^\d+/) || [''])[0]; let found = false;
+      Object.keys(S.extra).filter(c => g && (c.match(/^\d+/) || [''])[0] === g).forEach(c => {
+        const d = S.extra[c], st = d.students.find(x => sameName(x.n, s.name)); if (!st) return; found = true;
+        d.dates.forEach((dt, i) => {
+          const l = st.c[i] || [];
+          if (l.some(x => x[1] === 'Н' || x[0] === 'Н' || x[0] === 'H')) S.abs.set(dt, Object.assign({ src: 'Extra' }, S.abs.get(dt) || {}));
+          const gm = l.filter(x => !(x[1] === 'Н' || x[0] === 'Н' || x[0] === 'H')).map(x => x[1] + ': ' + x[0]);
+          if (gm.length) (S.marksBy[dt] = S.marksBy[dt] || []).push(...gm);
+        });
+      });
+      if (!found) S.extraSt = 'У таблиці з Extra цього учня не знайдено — показано лише «Н» з журналу сайту.';
+    } catch (e) { S.extraSt = 'Не вдалося прочитати оцінки з Extra: ' + e.message; S.extra = null; }
+  }
+  function refresh() {
+    const cal = $('.grid2 > div'); if (!cal) return draw();
+    cal.innerHTML = calHtml(); sync();
+  }
+  function sync() {
+    const n = $('#nabs'); if (n) n.textContent = 'Н у календарі: ' + S.abs.size;
+    const sa = $('#selabs'); if (sa) sa.innerHTML = S.sel.size ? [...S.sel].sort().map(d => { const pl = planFor(S.stu.group, d); return '<div style="margin:2px 0"><span class="badge b-bad" style="margin-right:6px">' + dm(d) + '</span>' + (pl.length ? esc(pl.join('; ')) : '<span class="muted">за планом тема невідома</span>') + '</div>'; }).join('') : 'Натисніть на червоні дні в календарі (або залиште порожнім)';
+    const du = $('#due'); if (du) du.value = S.due;
+    const dt = $('#duetxt'); if (dt) dt.innerHTML = S.due ? '📅 Здати до <span style="color:var(--blue)">' + dm(S.due) + '.' + S.due.slice(0, 4) + '</span> (' + ['неділя', 'понеділок', 'вівторок', 'середа', 'четвер', 'пʼятниця', 'субота'][parse(S.due).getDay()] + ')' : '<span class="muted" style="font-weight:500">Дату не обрано: натисніть день у календарі або кнопку нижче</span>';
+    // підказки: що було цього дня в групі (з журналу сайту)
+    const h = $('#hints'); if (h) {
+      const w = (S.info && S.info.works || []).filter(x => S.sel.has(x.d));
+      const pt = [...S.sel].sort().map(d => planFor(S.stu.group, d).map(t => ({ d, t }))).flat();
+      h.innerHTML = pt.length ? '<div class="muted" style="font-size:13px;margin-top:6px">Теми за планом (клік — додати в коментар):</div>' + pt.map(x => '<div class="hint" data-t="' + esc(x.t + ' (' + dm(x.d) + ')') + '">' + esc(x.t) + ' · ' + dm(x.d) + '</div>').join('') : w.length ? '<div class="muted" style="font-size:13px;margin-top:6px">Що було в ці дні (клік — додати в коментар):</div>' + w.map(x => '<div class="hint" data-t="' + esc(x.t + ' (' + dm(x.d) + ')') + '">' + esc(x.t) + ' · ' + dm(x.d) + '</div>').join('') : '';
+    }
+    const tp = $('#topic'); if (tp && !tp.value && S.sel.size) {
+      const pt = [...S.sel].sort().map(d => planFor(S.stu.group, d).map(t => t + ' (' + dm(d) + ')')).flat(), w = (S.info && S.info.works || []).filter(x => S.sel.has(x.d));
+      if (pt.length) tp.value = 'Тема: ' + pt.join('; '); else if (w.length) tp.value = 'Тема: ' + w.map(x => x.t).join(', ');
+    }
+  }
+
+  /* ---------- таблиці ---------- */
+  function termTxt(m) {
+    const n = daysBetween(S.today, m.due);
+    return '<b>' + dm(m.due) + '</b> <span class="badge ' + (n < 0 ? 'b-bad' : n <= 1 ? 'b-amb' : 'b-ok') + '">' + (n < 0 ? 'прострочено' : n === 0 ? 'сьогодні' : n === 1 ? 'завтра' : 'через ' + n + ' дн.') + '</span>';
+  }
+  function actRow(m) {
+    return '<tr><td><b>' + esc(m.name) + '</b><div class="muted" style="font-size:13px">' + esc(m.group) + '</div></td><td>' + termTxt(m) + '</td><td>' + (m.abs.length ? m.abs.map(dm).join(', ') : '—') + '</td><td>' + esc(m.topic || '') + '</td>' +
+      '<td><div class="acts"><input class="gin" type="number" min="1" max="12" placeholder="1–12" data-g="' + m.id + '"><input type="date" data-gd="' + m.id + '" value="' + S.today + '" style="padding:6px"><button class="btn sm" data-done="' + m.id + '">Здав ✓</button></div></td>' +
+      '<td><div class="acts"><button class="btn ghost sm" data-edit="' + m.id + '">✎</button><button class="btn bad sm" data-cancel="' + m.id + '">✕</button></div></td></tr>';
+  }
+  function histRow(m) {
+    const res = m.status === 'done' ? '<span class="badge b-ok">' + m.grade + ' · ' + dm(m.done) + '</span>' : '<span class="badge b-bad">2 автоматично · термін ' + dm(m.due) + '</span>';
+    return '<tr><td><b>' + esc(m.name) + '</b><div class="muted" style="font-size:13px">' + esc(m.group) + '</div></td><td>' + res + '</td><td>' + esc(m.topic || '') + '</td>' +
+      '<td>' + (m.status === 'failed' ? '<div class="acts"><input class="gin" type="number" min="1" max="12" placeholder="1–12" data-g="' + m.id + '"><input type="date" data-gd="' + m.id + '" value="' + S.today + '" style="padding:6px"><button class="btn sm" data-done="' + m.id + '">Здав пізніше</button><button class="btn bad sm" data-cancel="' + m.id + '" title="Прибрати автоматичну двійку">✕</button></div>' : '') + '</td></tr>';
+  }
+  async function reload() { try { const ml = await api('t_mk_list'); S.items = ml.items; S.today = ml.today; } catch (e) { if (e.message !== 'pin') toast(e.message, true); } }
+
+  /* ---------- події ---------- */
+  function wire() {
+    const q = $('#q');
+    if (q) {
+      q.oninput = () => suggest(q.value);
+      q.onkeydown = e => {
+        if (e.key === 'ArrowDown') { S.sugI = Math.min(S.sug.length - 1, S.sugI + 1); drawSug(); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { S.sugI = Math.max(0, S.sugI - 1); drawSug(); e.preventDefault(); }
+        else if (e.key === 'Enter' && S.sug[S.sugI]) { pick(S.sug[S.sugI]); }
+        else if (e.key === 'Escape') { S.sug = []; drawSug(); }
+      };
+      if (!S.stu) q.focus();
+    }
+    sync();
+  }
+  document.addEventListener('mousedown', e => { const r = e.target.closest('#sug div[data-i]'); if (r) { e.preventDefault(); pick(S.sug[+r.dataset.i]); } });
+  document.addEventListener('click', async e => {
+    const t = e.target;
+    let b;
+    if ((b = t.closest('button[data-m]'))) { const v = +b.dataset.m, [y, m] = S.ym.split('-').map(Number); S.ym = v === 0 ? S.today.slice(0, 7) : (d => d.getFullYear() + '-' + pad(d.getMonth() + 1))(new Date(y, m - 1 + v, 1)); return refresh(); }
+    if ((b = t.closest('button.d[data-d]'))) {
+      const s = b.dataset.d;
+      if (S.abs.has(s)) { if (S.sel.has(s)) S.sel.delete(s); else S.sel.add(s); }
+      else if (s >= S.today) S.due = S.due === s ? '' : s;
+      return refresh();
+    }
+    if ((b = t.closest('.chip[data-due]'))) { S.due = b.dataset.due; return refresh(); }
+    if ((b = t.closest('.hint[data-t]'))) { const tp = $('#topic'); tp.value = (tp.value ? tp.value.trim() + '; ' : '') + b.dataset.t; return; }
+    if (t.id === 'gs') { const u = $('#gu').value.trim(), k = $('#gk').value.trim(); if (u && k) { ls.s('gr_url', u); ls.s('gr_key', k); S.extra = null; toast('Збережено'); if (S.stu) pick(S.stu); else draw(); } return; }
+    if (t.id === 'ack') { try { await api('t_mk_ack', {}); await reload(); draw(); } catch (er) { if (er.message !== 'pin') toast(er.message, true); } return; }
+    if (t.id === 'create') {
+      if (!S.stu) return;
+      if (!S.due) return toast('Оберіть дату здачі в календарі або кнопкою «Завтра / Через тиждень»', true);
+      try {
+        await api('t_mk_create', { group: S.stu.group, name: S.stu.name, due: S.due, topic: $('#topic').value.trim(), abs: JSON.stringify([...S.sel].sort()) });
+        toast('Призначено: ' + S.stu.name + ' — здати до ' + dm(S.due));
+        S.stu = null; S.info = null; S.sel = new Set(); S.due = ''; await reload(); draw();
+      } catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+      return;
+    }
+    if ((b = t.closest('[data-done]'))) {
+      const id = b.dataset.done, g = $('[data-g="' + id + '"]').value, d = $('[data-gd="' + id + '"]').value;
+      if (!g) return toast('Введіть оцінку 1–12', true);
+      try { const r = await api('t_mk_done', { id, grade: g, date: d }); toast('Записано в журнал: ' + r.grade + ' на ' + dm(r.date)); await reload(); draw(); }
+      catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+      return;
+    }
+    if ((b = t.closest('[data-edit]'))) {
+      const m = S.items.find(x => x.id === b.dataset.edit); if (!m) return;
+      const nd = prompt('Нова дата здачі (РРРР-ММ-ДД):', m.due); if (nd == null) return;
+      const nt = prompt('Тема / коментар:', m.topic || ''); if (nt == null) return;
+      try { await api('t_mk_update', { id: m.id, due: nd.trim(), topic: nt }); toast('Збережено'); await reload(); draw(); } catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+      return;
+    }
+    if ((b = t.closest('[data-cancel]'))) {
+      const m = S.items.find(x => x.id === b.dataset.cancel); if (!m) return;
+      if (!confirm(m.status === 'failed' ? 'Прибрати автоматичну двійку з журналу й закрити запис?' : 'Скасувати відпрацювання для ' + m.name + '?')) return;
+      try { await api('t_mk_cancel', { id: m.id }); await reload(); draw(); } catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+      return;
+    }
+  });
+  document.addEventListener('change', e => { if (e.target.id === 'due') { S.due = e.target.value; refresh(); } });
+
+  if (PIN) boot(); else login();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>План занять</title>
+<script src="config.js"></script>
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1f7a5a">
+<style>
+  :root { --bg:#f3f1ea; --card:#fff; --ink:#1d2a2e; --muted:#667378; --line:#dcd9ce; --accent:#1f7a5a; --accent-soft:#e3f2ec; --bad:#c0392b; --amber-soft:#fff1d6; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .top { background:#12202a; color:#fff; position:sticky; top:0; z-index:5; }
+  .top-in { max-width:1000px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .brand { font-weight:800; font-size:18px; flex:1; }
+  .wrap { max-width:1000px; margin:0 auto; padding:16px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  h2 { margin:0 0 10px; font-size:18px; }
+  .btn { border:1.5px solid var(--accent); background:var(--accent); color:#fff; border-radius:10px; padding:9px 16px; font:inherit; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn[disabled] { opacity:.45; cursor:default; } .btn.ghost { background:#fff; color:var(--ink); border-color:var(--line); }
+  .top .btn.ghost { background:transparent; color:#fff; border-color:rgba(255,255,255,.35); }
+  .btn.sm { padding:5px 10px; font-size:14px; border-radius:8px; } .btn.bad { background:#fff; color:var(--bad); border-color:var(--bad); }
+  input, textarea, select { font:inherit; padding:8px 10px; border:1.5px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); max-width:100%; }
+  label.f { display:block; font-size:13px; font-weight:700; color:var(--muted); margin:10px 0 3px; }
+  .muted { color:var(--muted); } .err { color:var(--bad); font-weight:600; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  table { width:100%; border-collapse:collapse; font-size:14.5px; } th, td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); } th { font-size:13px; color:var(--muted); }
+  td input { width:100%; padding:5px 7px; } .scroll { overflow:auto; max-height:420px; border:1px solid var(--line); border-radius:10px; }
+  .skip { background:var(--amber-soft); border-radius:8px; padding:8px 12px; font-size:13.5px; margin-top:8px; white-space:pre-wrap; max-height:140px; overflow:auto; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; z-index:20; max-width:90vw; } #toast.bad { background:var(--bad); } .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in"><div class="brand">📅 План занять</div><a class="btn ghost" href="makeup.html">Відпрацювання</a><a class="btn ghost" href="editor.html">← Кабінет</a></div></div>
+<div class="wrap" id="app"></div>
+<div id="toast" class="hidden"></div>
+<script>
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const SCRIPT_URL = window.SCRIPT_URL || '', app = $('#app');
+  let PIN = ''; try { PIN = sessionStorage.getItem('pin') || ''; } catch (e) {}
+  const S = { groups: [], plans: {}, key: '', rows: [], skipped: [], wb: null, open: '' };
+  const pad = n => String(n).padStart(2, '0');
+  const dm = s => s.slice(8, 10) + '.' + s.slice(5, 7);
+
+  function toast(m, bad) { const t = $('#toast'); t.textContent = m; t.className = bad ? 'bad' : ''; clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'hidden', bad ? 6000 : 3000); }
+  async function api(action, data) {
+    if (!SCRIPT_URL) throw new Error('Сайт ще не підключено до Google Таблиці (setup.html)');
+    let r; try { r = await fetch(SCRIPT_URL, { method: 'POST', body: new URLSearchParams(Object.assign({ action, pin: PIN }, data || {})) }); } catch (e) { throw new Error('Немає зв\'язку із сервером'); }
+    let j; try { j = await r.json(); } catch (e) { throw new Error('Сервер відповів незрозуміло. Опублікуйте оновлений Code.gs (Нова версія).'); }
+    if (j.error === 'pin') { PIN = ''; try { sessionStorage.removeItem('pin'); } catch (e) {} login('Невірний пін'); throw new Error('pin'); }
+    if (j.error) throw new Error(j.error);
+    return j;
+  }
+  function login(msg) {
+    app.innerHTML = '<div class="panel" style="max-width:380px;margin:40px auto"><h2>Кабінет вчителя</h2><label class="f">Пін-код</label><input type="password" id="pin" style="width:100%"><button class="btn" id="go" style="margin-top:12px;width:100%">Увійти</button><div class="err">' + esc(msg || '') + '</div></div>';
+    const go = async () => { PIN = $('#pin').value; try { await api('t_auth'); try { sessionStorage.setItem('pin', PIN); } catch (e) {} boot(); } catch (e) { if (e.message !== 'pin') login(e.message); } };
+    $('#go').onclick = go; $('#pin').onkeydown = e => { if (e.key === 'Enter') go(); }; $('#pin').focus();
+  }
+
+  /* ---------- розбір дат і тем ---------- */
+  const MON = { січ: 1, лют: 2, бер: 3, кві: 4, тра: 5, чер: 6, лип: 7, сер: 8, вер: 9, жов: 10, лис: 11, гру: 12 };
+  const now = new Date(), y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;   // початок навчального року
+  function mkIso(d, m, y) {
+    d = +d; m = +m; if (y == null || y === '') y = m >= 8 ? y0 : y0 + 1; else { y = +y; if (y < 100) y += 2000; }
+    if (m < 1 || m > 12 || d < 1 || d > new Date(y, m, 0).getDate()) return null;
+    return y + '-' + pad(m) + '-' + pad(d);
+  }
+  const WD = /^(пн|вт|ср|чт|пт|сб|нд|понеділок|вівторок|середа|четвер|п.?ятниця|субота|неділя)\.?[,\s]*/i;
+  const SEP = /^[\s\-–—:.)\t|]+/;
+  // дата на початку рядка → { iso, rest }
+  function dateAt(str) {
+    let s = String(str || '').trim().replace(WD, ''), m;
+    if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) { const iso = mkIso(m[3], m[2], m[1]); if (iso) return { iso, rest: s.slice(m[0].length).replace(SEP, '').trim() }; }
+    if ((m = s.match(/^(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{4}|\d{2}))?(?![\d])/))) { const iso = mkIso(m[1], m[2], m[3]); if (iso) return { iso, rest: s.slice(m[0].length).replace(SEP, '').trim() }; }
+    if ((m = s.match(/^(\d{1,2})\s+([а-яіїєґ]{3,})\.?/i)) && MON[m[2].toLowerCase().slice(0, 3)]) { const iso = mkIso(m[1], MON[m[2].toLowerCase().slice(0, 3)]); if (iso) return { iso, rest: s.slice(m[0].length).replace(SEP, '').trim() }; }
+    return null;
+  }
+  function parseRows(rows) {
+    const out = [], skipped = []; let pending = null;
+    rows.forEach(raw => {
+      const cells = raw.map(c => String(c == null ? '' : c).replace(/\s+/g, ' ').trim()), line = cells.filter(Boolean).join(' | ');
+      if (!line) return;
+      let date = null, topic = '';
+      // 1) окрема клітинка з датою (таблиця)
+      const di = cells.findIndex(c => { const d = c && dateAt(c); return d && !d.rest; });
+      if (di >= 0 && cells.filter(Boolean).length > 1) {
+        date = dateAt(cells[di]).iso;
+        topic = cells.filter((c, i) => c && i !== di && !/^\d+$/.test(c) && !WD.test(c + ' ') ).join(' — ');
+      } else {
+        // 2) дата на початку рядка / першої клітинки
+        const first = cells.find(Boolean), d = dateAt(first);
+        if (d) { date = d.iso; topic = [d.rest].concat(cells.slice(cells.indexOf(first) + 1).filter(c => c && !/^\d+$/.test(c))).filter(Boolean).join(' — '); }
+      }
+      if (date) { if (topic) { out.push({ d: date, t: topic }); pending = null; } else pending = date; return; }
+      if (pending && line.length > 2) { out.push({ d: pending, t: cells.filter(c => c && !/^\d+$/.test(c)).join(' — ') }); pending = null; return; }
+      skipped.push(line);
+    });
+    return { rows: out, skipped };
+  }
+  const fromText = txt => parseRows(String(txt).split(/\r?\n/).map(l => l.indexOf('\t') >= 0 ? l.split('\t') : [l]));
+
+  /* ---------- читання файлів ---------- */
+  const loadScript = src => new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('Не вдалося завантажити бібліотеку (потрібен інтернет)')); document.head.appendChild(el); });
+  function csvRows(txt) {
+    const delim = (txt.match(/;/g) || []).length > (txt.match(/,/g) || []).length ? ';' : (txt.indexOf('\t') >= 0 ? '\t' : ',');
+    const rows = []; let row = [], cur = '', q = false;
+    for (let i = 0; i < txt.length; i++) {
+      const c = txt[i];
+      if (q) { if (c === '"') { if (txt[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+      else if (c === '"') q = true; else if (c === delim) { row.push(cur); cur = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && txt[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; }
+      else cur += c;
+    }
+    row.push(cur); rows.push(row); return rows;
+  }
+  async function readFile(f) {
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    S.wb = null;
+    if (ext === 'xlsx' || ext === 'xls') {
+      if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      S.wb = window.XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: false });
+      const names = S.wb.SheetNames, want = (S.key.match(/^\d+/) || [''])[0];
+      const pick = names.find(n => want && (n.match(/\d+/) || [''])[0] === want) || names[0];
+      return sheetRows(pick);
+    }
+    if (ext === 'docx') {
+      if (!window.mammoth) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+      const html = (await window.mammoth.convertToHtml({ arrayBuffer: await f.arrayBuffer() })).value, doc = new DOMParser().parseFromString(html, 'text/html'), rows = [];
+      [...doc.body.children].forEach(el => {
+        if (el.tagName === 'TABLE') el.querySelectorAll('tr').forEach(tr => rows.push([...tr.children].map(td => td.textContent)));
+        else if (/^(UL|OL)$/.test(el.tagName)) el.querySelectorAll('li').forEach(li => rows.push([li.textContent]));
+        else el.textContent.split('\n').forEach(l => rows.push([l]));
+      });
+      return rows;
+    }
+    if (ext === 'pdf') {
+      if (!window.pdfjsLib) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const doc = await window.pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise, rows = [];
+      for (let p = 1; p <= Math.min(doc.numPages, 60); p++) {
+        const tc = await (await doc.getPage(p)).getTextContent(), lines = {};
+        tc.items.forEach(it => { if (!it.str.trim()) return; const y = Math.round(it.transform[5] / 3); (lines[y] = lines[y] || []).push({ x: it.transform[4], s: it.str }); });
+        Object.keys(lines).sort((a, b) => b - a).forEach(y => { const l = lines[y].sort((a, b) => a.x - b.x); let cells = [], cur = '', lx = null; l.forEach(it => { if (lx != null && it.x - lx > 25) { cells.push(cur); cur = ''; } cur += (cur && !/\s$/.test(cur) && lx != null && it.x - lx <= 25 ? ' ' : '') + it.s; lx = it.x + it.s.length * 4; }); cells.push(cur); rows.push(cells); });
+      }
+      return rows;
+    }
+    const txt = await f.text();
+    return ext === 'csv' ? csvRows(txt) : txt.split(/\r?\n/).map(l => l.indexOf('\t') >= 0 ? l.split('\t') : [l]);
+  }
+  function sheetRows(name) { return window.XLSX.utils.sheet_to_json(S.wb.Sheets[name], { header: 1, raw: false, defval: '', dateNF: 'dd.mm.yyyy' }); }
+
+  /* ---------- екран ---------- */
+  async function boot() {
+    app.innerHTML = '<div class="panel muted">Завантаження…</div>';
+    try { const [g, p] = await Promise.all([api('t_stu_get'), api('t_plan_get')]); S.groups = g.groups || []; S.plans = p.plans || {}; }
+    catch (e) { if (e.message !== 'pin') app.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; return; }
+    const grades = [...new Set(S.groups.map(x => (String(x).match(/^\d+/) || [''])[0]).filter(Boolean))].sort((a, b) => a - b);
+    S.opts = []; grades.forEach(g => { S.opts.push([g, g + ' клас (усі групи)']); S.groups.filter(x => String(x).match(/^\d+/) && String(x).match(/^\d+/)[0] === g && /-/.test(x)).sort().forEach(x => S.opts.push([x, '    ' + x + ' (лише ця група)'])); });
+    if (!S.key && S.opts.length) S.key = S.opts[0][0];
+    draw();
+  }
+  function draw() {
+    const keys = Object.keys(S.plans).sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+    app.innerHTML =
+      '<div class="panel"><h2>Завантажити план занять</h2><p class="muted" style="margin-top:0">Файл Excel (.xlsx), Word (.docx), PDF, .csv/.txt або просто вставлений текст. У кожному рядку має бути <b>дата</b> (05.11, 05.11.2026, 5 листопада) і <b>тема</b>. Рік, якщо його немає, береться з навчального року.</p>' +
+      '<div class="row"><div><label class="f">Для якого класу / групи</label><select id="key">' + S.opts.map(o => '<option value="' + esc(o[0]) + '"' + (o[0] === S.key ? ' selected' : '') + '>' + esc(o[1]) + '</option>').join('') + '</select></div>' +
+      '<div><label class="f">Файл</label><input type="file" id="file" accept=".xlsx,.xls,.docx,.pdf,.csv,.txt"></div><div id="sheetpick"></div></div>' +
+      '<label class="f">…або вставте текст (наприклад, скопіюйте з Excel / Word)</label><textarea id="txt" rows="5" style="width:100%" placeholder="05.11  Будова клітини\n07.11  Тканини рослин\n12.11  Нервова система"></textarea>' +
+      '<div style="margin-top:10px"><button class="btn" id="parse">Розібрати</button></div><div id="prev"></div></div>' +
+      '<div class="panel"><h2>Завантажені плани</h2>' + (keys.length ? '<table><tr><th>Клас / група</th><th>Занять</th><th>Період</th><th></th></tr>' + keys.map(k => { const a = S.plans[k]; return '<tr><td><b>' + esc(k) + '</b></td><td>' + a.length + '</td><td>' + dm(a[0].d) + ' – ' + dm(a[a.length - 1].d) + '</td><td style="text-align:right"><button class="btn ghost sm" data-view="' + esc(k) + '">Переглянути</button> <button class="btn bad sm" data-del="' + esc(k) + '">Видалити</button></td></tr>' + (S.open === k ? '<tr><td colspan="4"><div class="scroll"><table>' + a.map(x => '<tr><td style="width:90px">' + dm(x.d) + '</td><td>' + esc(x.t) + '</td></tr>').join('') + '</table></div></td></tr>' : ''); }).join('') + '</table>' : '<span class="muted">Планів ще немає.</span>') + '</div>';
+    $('#key').onchange = e => { S.key = e.target.value; };
+    $('#file').onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try { toast('Читаю файл…'); const rows = await readFile(f); showParsed(parseRows(rows)); drawSheets(); }
+      catch (er) { toast('Не вдалося прочитати файл: ' + er.message, true); }
+    };
+    $('#parse').onclick = () => { const t = $('#txt').value; if (!t.trim()) return toast('Вставте текст або оберіть файл', true); S.wb = null; showParsed(fromText(t)); };
+    if (S.rows.length || S.skipped.length) renderPrev();
+  }
+  function drawSheets() {
+    const h = $('#sheetpick'); if (!h || !S.wb || S.wb.SheetNames.length < 2) return;
+    h.innerHTML = '<label class="f">Аркуш у файлі</label><select id="sheet">' + S.wb.SheetNames.map(n => '<option>' + esc(n) + '</option>').join('') + '</select>';
+    const want = (S.key.match(/^\d+/) || [''])[0], pick = S.wb.SheetNames.find(n => want && (n.match(/\d+/) || [''])[0] === want) || S.wb.SheetNames[0];
+    $('#sheet').value = pick; $('#sheet').onchange = e => showParsed(parseRows(sheetRows(e.target.value)));
+  }
+  function showParsed(r) { S.rows = r.rows; S.skipped = r.skipped; renderPrev(); }
+  function renderPrev() {
+    const p = $('#prev'); if (!p) return;
+    p.innerHTML = '<h2 style="margin-top:16px">Знайдено занять: ' + S.rows.length + '</h2>' +
+      (S.rows.length ? '<div class="scroll"><table><tr><th style="width:150px">Дата</th><th>Тема</th><th style="width:40px"></th></tr>' + S.rows.map((r, i) => '<tr><td><input type="date" data-d="' + i + '" value="' + r.d + '"></td><td><input data-t="' + i + '" value="' + esc(r.t) + '"></td><td><button class="btn bad sm" data-rm="' + i + '">✕</button></td></tr>').join('') + '</table></div>' +
+        '<div class="row" style="margin-top:10px"><label><input type="radio" name="mode" value="merge" checked> додати до наявного (дати з файлу замінюють старі)</label><label><input type="radio" name="mode" value="replace"> замінити весь план цього класу</label></div>' +
+        '<div style="margin-top:10px"><button class="btn" id="save">Зберегти план для «' + esc(S.key) + '»</button></div>' : '<p class="err">Не знайдено жодного рядка з датою й темою. Перевірте, чи є в рядках дати (05.11 або 5 листопада).</p>') +
+      (S.skipped.length ? '<div class="skip"><b>Пропущено рядків без дати (' + S.skipped.length + '):</b>\n' + esc(S.skipped.slice(0, 12).join('\n')) + (S.skipped.length > 12 ? '\n…' : '') + '</div>' : '');
+  }
+  document.addEventListener('input', e => {
+    const t = e.target; if (t.dataset.d != null) S.rows[+t.dataset.d].d = t.value; else if (t.dataset.t != null) S.rows[+t.dataset.t].t = t.value;
+  });
+  document.addEventListener('click', async e => {
+    let b;
+    if ((b = e.target.closest('[data-rm]'))) { S.rows.splice(+b.dataset.rm, 1); return renderPrev(); }
+    if ((b = e.target.closest('[data-view]'))) { S.open = S.open === b.dataset.view ? '' : b.dataset.view; return draw(); }
+    if ((b = e.target.closest('[data-del]'))) {
+      if (!confirm('Видалити весь план «' + b.dataset.del + '»?')) return;
+      try { await api('t_plan_del', { key: b.dataset.del }); delete S.plans[b.dataset.del]; draw(); toast('Видалено'); } catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+      return;
+    }
+    if (e.target.id === 'save') {
+      const rows = S.rows.filter(r => r.d && r.t.trim()), mode = (document.querySelector('input[name=mode]:checked') || {}).value || 'merge';
+      if (!rows.length) return toast('Немає що зберігати', true);
+      try {
+        const r = await api('t_plan_set', { key: S.key, mode, rows: JSON.stringify(rows) });
+        toast('Збережено занять: ' + r.saved); S.rows = []; S.skipped = [];
+        S.plans = (await api('t_plan_get')).plans; draw();
+      } catch (er) { if (er.message !== 'pin') toast(er.message, true); }
+    }
+  });
+
+  window.__plan = { parseRows, fromText };
+  if (PIN) boot(); else login();
+})();
+</script>
+</body>
+</html>
