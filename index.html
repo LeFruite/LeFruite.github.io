@@ -340,6 +340,14 @@
   const PEND_KEY = 'pending_' + TEST_ID;
   let sending = false, sendTries = 0;
   function saveStatus(kind) {
+    if (!PREVIEW) {   // помітна смужка зверху, поки відповіді ще не на сервері, — видно на будь-якому екрані
+      let b = document.getElementById('pend-bar');
+      if (kind === 'ok') { if (b) b.remove(); }
+      else {
+        if (!b) { b = document.createElement('div'); b.id = 'pend-bar'; b.setAttribute('role', 'status'); b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#fff4e5;color:#6b4e12;border-bottom:2px solid #f3d9a8;padding:8px 12px;font:700 14px sans-serif;text-align:center'; document.body.appendChild(b); }
+        b.textContent = kind === 'sending' ? 'Надсилаємо відповіді…' : 'Відповіді збережено на цьому пристрої й будуть надіслані автоматично. Не закривайте сторінку.';
+      }
+    }
     const e = $('save-status'); if (!e || PREVIEW) return;
     e.className = kind;
     e.textContent = kind === 'ok' ? '✓ Відповіді збережено на сервері.' : kind === 'sending' ? 'Зберігаємо відповіді…' :
@@ -363,11 +371,12 @@
       saveStatus('ok');
     }).catch(() => {
       sendTries++;
-      if (sendTries >= 40) { saveStatus('fail'); return; }
-      saveStatus('retry'); setTimeout(flushPending, Math.min(15000, 1500 * sendTries) + Math.random() * 1000);
+      saveStatus(sendTries >= 40 ? 'fail' : 'retry');   // не здаємося: повторюємо й далі, але рідше
+      setTimeout(flushPending, (sendTries >= 40 ? 30000 : Math.min(15000, 1500 * sendTries)) + Math.random() * 1000);
     }).then(() => { sending = false; });
   }
   window.addEventListener('online', flushPending);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) flushPending(); });
 
 
   /* ---------- Правила гри (екран входу) ---------- */
@@ -536,6 +545,19 @@
       ? 'Роботу призупинено вчителем. Зачекайте — кнопка «Розпочати» стане активною автоматично.'
       : 'Вчитель ще не розпочав роботу. Зачекайте — кнопка «Розпочати» стане активною автоматично.';
     if (!starting) $('start-btn').disabled = !open;
+    if (open && !blocked) prefetchBody(); else if (!open) bodyPre = null;
+  }
+  /* Питання завантажуються наперед, щойно вчитель відкрив роботу, — «Розпочати» не чекає двох запитів поспіль */
+  let bodyPre = null;
+  function prefetchBody() {
+    if (PREVIEW || (bodyPre && (bodyPre.p || Date.now() - bodyPre.ts < 600000))) return;
+    const rec = bodyPre = { ts: Date.now(), t: null, p: null };
+    rec.p = getJson('body=' + encodeURIComponent(TEST_ID)).then(b => { if (b && b.test) rec.t = b.test; else bodyPre = null; }).catch(() => { bodyPre = null; }).then(() => { rec.p = null; });
+  }
+  function takeBody() {
+    const r = bodyPre; if (!r) return Promise.resolve(null);
+    if (r.t && Date.now() - r.ts < 600000) return Promise.resolve({ test: r.t });
+    return r.p ? r.p.then(() => (r.t ? { test: r.t } : null)) : Promise.resolve(null);
   }
 
   /* ---------- Захист від копіювання/вставки ---------- */
@@ -728,7 +750,7 @@
         const parts = status.split('|');
         myRound = parseInt(parts[1], 10) || 1; myStop = parseInt(parts[2], 10) || 0;
         try { localStorage.setItem(LS_KEY, String(myRound)); } catch (e) {}
-        getJson('body=' + encodeURIComponent(TEST_ID)).then(b => {
+        takeBody().then(b => b || getJson('body=' + encodeURIComponent(TEST_ID))).then(b => {
           if (b.test) begin(b.test); else { alert('Не вдалося завантажити питання (' + (b.error || '?') + '). Зверніться до вчителя.'); resetStartBtn(); }
         }).catch(() => { alert('Помилка з\'єднання під час завантаження питань. Спробуйте ще раз або оновіть сторінку — роботу можна буде продовжити.'); resetStartBtn(); });
       } else { alert('Сервер зайнятий або сталася помилка (' + status + '). Спробуйте ще раз.'); resetStartBtn(); }
@@ -755,8 +777,8 @@
   }
   function startTotal() { clearInterval(totalTimer); tickTotal(); totalTimer = setInterval(tickTotal, 500); }
   function setWatermark() {
-    if (PREVIEW || !studentName) return;
     let w = document.getElementById('wm');
+    if (PREVIEW || !studentName || !(TEST && TEST.watermark === true)) { if (w) w.remove(); return; }
     if (!w) { w = document.createElement('div'); w.id = 'wm'; document.body.appendChild(w); }
     const x = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const nm = x(String(studentName).split(/\s+/).slice(0, 2).join(' ')), cl = x(className);
