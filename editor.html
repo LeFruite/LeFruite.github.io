@@ -200,6 +200,7 @@
   .filters > div { min-width: 120px; }
   #toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px; z-index: 50; max-width: 90vw; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
   #toast.bad { background: var(--warn); }
+  @media (pointer:coarse) { .btn, button.chip-b, .tl { min-height:40px; } }
 </style>
 </head>
 <body>
@@ -380,21 +381,25 @@
     app.innerHTML = topbar(toolsMenu() + '<button class="btn ghost" id="imp">Імпорт з файлу</button><button class="btn" id="new">+ Нова робота</button>') +
       '<div class="wrap"><div id="mkbar"></div><h1>Роботи</h1><input class="tsearch" id="tq" placeholder="Пошук роботи за назвою, темою чи групою…"><div class="panel" id="list"><div class="empty">Завантаження…</div></div></div>';
     $('#new').onclick = newTest; $('#imp').onclick = () => $('#importpick').click();
+    const srt = r => r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
+    let cached = null; try { cached = JSON.parse(localStorage.getItem('boot_cache') || 'null'); } catch (e) {}
+    if (cached && cached.tests) { S.tests = srt(cached); $('#tq').oninput = drawTests; drawTests(); mkBar(cached.mk); }   // миттєво показуємо збережене, нижче оновлюємо
     try {
-      const r = await api('t_list'); S.tests = r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
-    } catch (e) { if (e.message !== 'pin') $('#list').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
-    $('#tq').oninput = drawTests;
-    drawTests();
-    mkBar();
-    monTimer = setInterval(async () => {                       // лічильник відкритих робіт оновлюється сам
+      const r = await api('t_boot'); S.tests = srt(r);
+      try { localStorage.setItem('boot_cache', JSON.stringify(r)); } catch (e) {}
       if (S.view !== 'list') return;
-      try { const r = await api('t_list'); S.tests = r.tests.sort((a, b) => String(b.updated).localeCompare(String(a.updated))); drawTests(); } catch (e) {}
+      $('#tq').oninput = drawTests; drawTests(); mkBar(r.mk);
+    } catch (e) { if (e.message !== 'pin' && !cached) $('#list').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; if (!cached) return; }
+    monTimer = setInterval(async () => {                       // лічильник відкритих робіт оновлюється сам
+      if (S.view !== 'list' || document.hidden) return;
+      try { const r = await api('t_list'); S.tests = srt(r); drawTests(); } catch (e) {}
     }, 20000);
   }
-  async function mkBar() {   // нагадування про відпрацювання (заодно виконується перевірка прострочених)
+  function mkBar(r) {   // нагадування про відпрацювання (дані приходять разом зі списком)
     try {
-      const r = await api('t_mk_list'), act = r.items.filter(m => m.status === 'pending'), nt = r.items.filter(m => m.notice), el = $('#mkbar');
-      if (!el || S.view !== 'list' || (!act.length && !nt.length)) return;
+      if (!r || !r.items) return;
+      const act = r.items.filter(m => m.status === 'pending'), nt = r.items.filter(m => m.notice), el = $('#mkbar');
+      if (!el || S.view !== 'list' || (!act.length && !nt.length)) { if (el) el.innerHTML = ''; return; }
       const soon = act.filter(m => m.due <= r.today).length;
       el.innerHTML = '<a href="makeup.html" class="openbar" style="text-decoration:none;color:inherit;background:' + (nt.length ? '#fbe0dc;border-color:#f0b3aa' : '#fff4e5;border-color:#f3d9a8') + '">' +
         (nt.length ? '⚠ <b>Не здали вчасно (автоматично 2): ' + nt.map(m => esc(m.name)).join(', ') + '</b> · ' : '') +
