@@ -30,6 +30,7 @@
   .c-урок { background:#fff3d6; } .c-ДЗ { background:#e6efff; } .c-СР { background:#ffe3c9; } .c-В { background:#e7f6e7; } .c-Н { background:#ddd; color:#444; }
   .lg span { margin-right:10px; font-size:13px; }
 </style>
+<script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </head>
 <body>
 <div class="wrap">
@@ -69,6 +70,7 @@ async function load() {
     const r = await fetch(u + (u.includes('?') ? '&' : '?') + 'grades=1&key=' + encodeURIComponent(k));
     const j = await r.json();
     if (j.error) throw new Error(j.error === 'bad key' ? 'Невірний ключ' : j.error);
+    if (!j.classes) throw new Error('приймач ще зі старим кодом — у Apps Script: Розгорнути → Керувати розгортаннями → ✏ → Нова версія → Розгорнути');
     DATA = j.classes; $('main').classList.remove('hidden');
     const names = Object.keys(DATA);
     if (!names.includes(cur)) cur = ls.g('gr_cls') && names.includes(ls.g('gr_cls')) ? ls.g('gr_cls') : names[0];
