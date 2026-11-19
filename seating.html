@@ -33,6 +33,11 @@
   .hall { display:flex; gap:10px; align-items:stretch; }
   .hall.win-left { flex-direction:row-reverse; }
   .desks { flex:1; display:grid; gap:0; border:2px solid var(--ink); border-radius:6px; background:#fff; min-width:0; }
+  .desks.tbls { grid-template-columns:repeat(auto-fit,minmax(290px,1fr)) !important; gap:14px; border:0; background:transparent; }
+  .tbl { display:flex; flex-direction:column; gap:6px; align-items:stretch; padding:6px; } .tbl .tt { display:flex; gap:6px; justify-content:center; } .tbl .tt > * { flex:1 1 0; max-width:48%; min-width:0; }
+  .tbl .tm { display:grid; grid-template-columns:1fr 46px 1fr; gap:6px; align-items:center; } .tbl .ts { display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .tbl .tbody { align-self:stretch; background:#ebe4d0; border:2px solid var(--ink); border-radius:8px; min-height:70px; }
+  .tbl .seat, .tbl .seat-sel { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .desk.big { display:grid; grid-template-columns:1fr 1fr; align-content:center; }
   .desk { border:1px solid var(--ink); padding:6px; display:flex; flex-direction:column; gap:6px; justify-content:center; min-height:84px; min-width:0; }
   .win { writing-mode:vertical-rl; text-orientation:upright; letter-spacing:2px; font-weight:800; font-size:13px; border:2px solid var(--ink); border-radius:6px; display:flex; align-items:center; justify-content:center; padding:6px 2px; background:#fff; }
@@ -81,7 +86,7 @@
     </div>
 
     <div id="att-view" class="panel">
-      <div class="legend"><span><i class="sw" style="background:#f7f6f1;border:1px solid var(--line)"></i>Присутній (нічого не пишемо)</span><span><i class="sw" style="background:var(--bad)"></i>Н — відсутній</span><span class="muted">Торкніться імені: Н → З → скасувати</span><span class="sum" id="sum"></span><span><i class="sw" style="background:var(--accent-soft,#e3f2ec);border:1px solid var(--accent,#1f7a5a)"></i>Число — оцінка за урок</span></div>
+      <div class="legend"><span><i class="sw" style="background:#f7f6f1;border:1px solid var(--line)"></i>Присутній (нічого не пишемо)</span><span><i class="sw" style="background:var(--bad)"></i>Н — відсутній</span><span class="muted">Торкніться імені — оберіть оцінку або Н</span><span class="sum" id="sum"></span><span><i class="sw" style="background:var(--accent-soft,#e3f2ec);border:1px solid var(--accent,#1f7a5a)"></i>Число — оцінка за урок</span></div>
       <div id="room"></div>
       <div class="pool" id="pool"></div>
     </div>
@@ -91,6 +96,8 @@
         <div><label class="f">Рядів</label><input type="number" id="e-rows" min="1" max="10" style="width:80px"></div>
         <div><label class="f">Парт у ряду</label><input type="number" id="e-cols" min="1" max="8" style="width:80px"></div>
         <div><label class="f">Місць за партою</label><input type="number" id="e-seats" min="1" max="16" style="width:80px"></div>
+        <div><label class="f">Вигляд</label><select id="e-shape"><option value="">Парти</option><option value="table">Великі столи</option></select></div>
+        <div id="tbl-ctl" class="hidden" style="display:flex;gap:12px"><div><label class="f">Місць угорі</label><input type="number" id="e-top" min="0" max="4" style="width:70px"></div><div><label class="f">Місць унизу</label><input type="number" id="e-bot" min="0" max="4" style="width:70px"></div></div>
         <div><label class="f">Дошка</label><select id="e-board"><option value="bottom">знизу</option><option value="top">зверху</option></select></div>
         <div><label class="f">Вікна</label><select id="e-win"><option value="right">праворуч</option><option value="left">ліворуч</option><option value="none">немає</option></select></div>
       </div>
@@ -150,7 +157,7 @@
     if (!L || !L.grid) return null;
     L.rows = L.grid.length; L.cols = Math.max(1, ...L.grid.map(r => r.length)); L.seats = Math.max(1, ...L.grid.flat().map(d => d.length));
     L.grid = L.grid.map(r => Array.from({ length: L.cols }, (_, i) => Array.from({ length: L.seats }, (_, k) => (r[i] || [])[k] || '')));
-    L.board = L.board === 'top' ? 'top' : 'bottom'; L.win = ['left', 'none'].includes(L.win) ? L.win : 'right'; return L;
+    L.board = L.board === 'top' ? 'top' : 'bottom'; L.shape = L.shape === 'table' ? 'table' : ''; L.top = Math.max(0, Math.min(4, +L.top || 0)); L.bot = Math.max(0, Math.min(4, +L.bot || 0)); L.win = ['left', 'none'].includes(L.win) ? L.win : 'right'; return L;
   }
   async function loadAll() {
     const my = ++loadSeq, c = cls(); if (!c) return;
@@ -169,8 +176,14 @@
   $('m-edit').onclick = () => { mode = 'edit'; draw(); };
 
   function seated() { return new Set(LAY.grid.flat(2).filter(Boolean)); }
+  function tableHtml(d, f) {   // великий стіл: місця навколо (угорі, зліва, справа, унизу)
+    const L = LAY, t = Math.min(+L.top || 0, d.length), b = Math.min(+L.bot || 0, d.length - t), rest = d.length - t - b, l = Math.ceil(rest / 2);
+    const part = (a, z) => d.slice(a, z).map((nm, i) => f(nm, a + i)).join('');
+    return '<div class="tbl"><div class="tt">' + part(0, t) + '</div><div class="tm"><div class="ts">' + part(t, t + l) + '</div><div class="tbody"></div><div class="ts">' + part(t + l, t + rest) + '</div></div><div class="tt">' + part(t + rest, d.length) + '</div></div>';
+  }
+  const isTbl = () => LAY && LAY.shape === 'table';
   function roomHtml(inner) {
-    const L = LAY, desks = '<div class="desks" style="grid-template-columns:repeat(' + L.cols + ',1fr)">' + inner + '</div>';
+    const L = LAY, desks = '<div class="desks' + (isTbl() ? ' tbls' : '') + '" style="grid-template-columns:repeat(' + L.cols + ',1fr)">' + inner + '</div>';
     const win = L.win === 'none' ? '' : '<div class="win">ВІКНА</div>';
     return '<div class="room ' + (L.board === 'top' ? 'top-board' : '') + '"><div class="hall ' + (L.win === 'left' ? 'win-left' : '') + '">' + desks + win + '</div><div class="board">ДОШКА</div></div>';
   }
@@ -187,7 +200,7 @@
     const m = MARKS[name] || '', g = GRADES[name] || ''; return '<button class="seat ' + (m === 'Н' ? 'n' : g ? 'g' : '') + '" data-n="' + esc(name) + '">' + (m ? '<span class="tag">' + m + '</span>' : g ? '<span class="tag">' + esc(g) + '</span>' : '') + esc(short(name)) + '</button>';
   }
   function drawAtt() {
-    $('room').innerHTML = roomHtml(LAY.grid.flat().map(d => '<div class="desk' + (d.length > 3 ? ' big' : '') + '">' + d.map(seatBtn).join('') + '</div>').join(''));
+    $('room').innerHTML = roomHtml(LAY.grid.flat().map(d => isTbl() ? tableHtml(d, seatBtn) : '<div class="desk' + (d.length > 3 ? ' big' : '') + '">' + d.map(seatBtn).join('') + '</div>').join(''));
     const s = seated(), rest = (ROSTER[cls()] || []).filter(n => !s.has(n));
     $('pool').innerHTML = rest.length ? '<div class="muted" style="margin-bottom:6px">Без місця в схемі:</div>' + rest.map(seatBtn).join('') : '';
     const n = Object.values(MARKS).filter(v => v === 'Н').length, ng = Object.keys(GRADES).length;
@@ -237,10 +250,12 @@
   function drawEdit() {
     const L = LAY; $('e-rows').value = L.rows; $('e-cols').value = L.cols; $('e-seats').value = L.seats; $('e-board').value = L.board; $('e-win').value = L.win;
     const opts = ['<option value="">—</option>'].concat((ROSTER[cls()] || []).map(n => '<option value="' + esc(n) + '">' + esc(short(n)) + '</option>'));
-    $('e-room').innerHTML = roomHtml(L.grid.map((r, ri) => r.map((d, ci) => '<div class="desk' + (d.length > 3 ? ' big' : '') + '">' + d.map((nm, k) => {
+    const selHtml = (ri, ci) => (nm, k) => {
       const extra = nm && !(ROSTER[cls()] || []).includes(nm) ? '<option value="' + esc(nm) + '" selected>' + esc(short(nm)) + ' (не зі списку)</option>' : '';
       return '<select class="seat-sel" data-r="' + ri + '" data-c="' + ci + '" data-k="' + k + '">' + opts.join('').replace('value="' + esc(nm) + '"', 'value="' + esc(nm) + '" selected') + extra + '</select>';
-    }).join('') + '</div>').join('')).join(''));
+    };
+    $('e-shape').value = L.shape === 'table' ? 'table' : ''; $('tbl-ctl').classList.toggle('hidden', L.shape !== 'table'); $('e-top').value = L.top == null ? 2 : L.top; $('e-bot').value = L.bot == null ? 0 : L.bot;
+    $('e-room').innerHTML = roomHtml(L.grid.map((r, ri) => r.map((d, ci) => isTbl() ? tableHtml(d, selHtml(ri, ci)) : '<div class="desk' + (d.length > 3 ? ' big' : '') + '">' + d.map(selHtml(ri, ci)).join('') + '</div>').join('')).join(''));
     // значення (якщо імені немає серед варіантів — додано окремо)
     $('e-room').querySelectorAll('select').forEach(s => { const nm = L.grid[+s.dataset.r][+s.dataset.c][+s.dataset.k]; if (nm && ![...s.options].some(o => o.value === nm)) s.add(new Option(short(nm) + ' (не зі списку)', nm)); s.value = nm; });
     const st = seated(), rest = (ROSTER[cls()] || []).filter(n => !st.has(n));
@@ -253,6 +268,8 @@
     L.rows = rows; L.cols = cols; L.seats = seats; dirty = true; drawEdit();
   }
   ['e-rows', 'e-cols', 'e-seats'].forEach(id => $(id).addEventListener('change', resize));
+  $('e-shape').onchange = () => { LAY.shape = $('e-shape').value; if (LAY.shape === 'table' && !LAY.top && !LAY.bot) LAY.top = 2; dirty = true; drawEdit(); };
+  ['e-top', 'e-bot'].forEach(id => $(id).addEventListener('change', () => { LAY.top = Math.max(0, Math.min(4, +$('e-top').value || 0)); LAY.bot = Math.max(0, Math.min(4, +$('e-bot').value || 0)); dirty = true; drawEdit(); }));
   $('e-board').onchange = () => { LAY.board = $('e-board').value; dirty = true; drawEdit(); };
   $('e-win').onchange = () => { LAY.win = $('e-win').value; dirty = true; drawEdit(); };
   document.addEventListener('change', e => {
@@ -264,7 +281,7 @@
   $('e-tables').onclick = () => {   // кілька великих столів: один ряд, кожен стіл — одна «парта» з багатьма місцями
     const n = Math.max(1, Math.min(8, parseInt(prompt('Скільки великих столів?', '2'), 10) || 0)); if (!n) return;
     const cnt = (ROSTER[cls()] || []).length, seats = Math.max(2, Math.min(16, Math.ceil(cnt / n)));
-    LAY = emptyLayout(1, n, seats); dirty = true; drawEdit(); toast('Створено ' + n + ' ст. по ' + seats + ' місць. Тепер «Заповнити за абеткою» або оберіть учнів вручну');
+    LAY = emptyLayout(1, n, seats); LAY.shape = 'table'; LAY.top = 2; LAY.bot = 0; dirty = true; drawEdit(); toast('Створено ' + n + ' ст. по ' + seats + ' місць. Тепер «Заповнити за абеткою» або оберіть учнів вручну');
   };
   $('e-fill').onclick = () => {
     if (!confirm('Розсадити всіх за абеткою, починаючи з першого ряду? Поточну схему буде замінено.')) return;
