@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Самостійні — кабінет вчителя</title>
+<title>BoikoTools — кабінет вчителя</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Самостійні">
+<meta name="apple-mobile-web-app-title" content="BoikoTools">
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 
 <script src="qr-lite.js"></script>
@@ -329,7 +329,8 @@
         if (s.type === 'label' && q.marks.some(m => !String(m.a).trim())) warns.push(w + 'є мітка без підпису');
         if (s.type === 'order') { const it = (q.items || []).filter(x => String(x).trim()); if (it.length < 3) warns.push(w + 'потрібно щонайменше 3 пункти'); if (new Set(it).size < it.length) warns.push(w + 'є однакові пункти (порядок можна переплутати)'); }
         if (s.type === 'cloze' && !/\[\[[^\]]+\]\]/.test(q.text || '')) warns.push(w + 'немає пропусків: візьміть слово у подвійні дужки, наприклад [[ядро]]');
-        if (s.type === 'num' && (q.ans === undefined || q.ans === '' || isNaN(+q.ans))) warns.push(w + 'не вказано правильного числа');
+        if (s.type === 'num' && q.params && String(q.params).trim()) { if (!String(q.formula || '').trim()) warns.push(w + 'є числа, але немає формули відповіді'); else if (!/\{[a-zA-Z_]\w*\}/.test(String(q.text || ''))) warns.push(w + 'у тексті немає жодного {параметра}'); }
+        else if (s.type === 'num' && (q.ans === undefined || q.ans === '' || isNaN(+q.ans))) warns.push(w + 'не вказано правильного числа');
         if (s.type === 'group') { if ((q.cats || []).length < 2) warns.push(w + 'потрібно щонайменше 2 групи'); if ((q.items || []).filter(it => String(it.t || '').trim()).length < 2) warns.push(w + 'потрібно щонайменше 2 елементи'); }
         if (s.type === 'find' && !/\*[^*\s][^*]*\*/.test(q.passage || '')) warns.push(w + 'не позначено правильних слів зірочками, наприклад *слово*');
         if (s.type === 'tap' && (!q.img || !q.targets.length)) warns.push(w + 'потрібні малюнок і правильне місце');
@@ -340,7 +341,7 @@
 
   /* ---------- екрани ---------- */
   function topbar(inner) {
-    return '<div class="top"><div class="top-in"><div class="brand"><i></i>Самостійні</div>' + (inner || '') + '</div></div>';
+    return '<div class="top"><div class="top-in"><div class="brand"><i></i>BoikoTools</div>' + (inner || '') + '</div></div>';
   }
   function showLogin(msg) {
     stopMon(); S.view = 'login';
@@ -358,16 +359,17 @@
   const TOOLS = [
     ['🪑', 'Розсадка', 'Схема кабінету, посадка по групах', 'seating.html'],
     ['📁', 'Матеріали', 'Свої HTML-файли для класів', 'materials.html'],
-    ['📋', 'Журнал самостійних', 'Результати робіт по класах', 'journal.html'],
+    ['📋', 'Журнал і оцінки', 'Самостійні та оцінки з Extra', 'journal.html'],
     ['🕒', 'Відпрацювання', 'Призначити дату, автоматична 2', 'makeup.html'],
     ['📅', 'План занять', 'Теми по датах для класів', 'plan.html'],
-    ['📊', 'Оцінки з Extra', 'Таблиця учні × дати', 'grades.html'],
     ['👥', 'Списки груп', 'Учні та групи', 'students.html'],
     ['📡', 'Живий урок', 'Питання в реальному часі', 'live-teacher.html'],
     ['📖', 'Довідка', 'Як усе працює', 'docs.html'],
     null,
     ['🏦', 'Банк питань', 'Питання окремо від робіт', '', 'bank'],
+    ['📱', 'Вхід на іншому пристрої', 'QR-код для телефона чи планшета', '', 'device'],
     ['💾', 'Резервна копія', 'Зберегти все одним файлом', '', 'backup'],
+    ['⚙️', 'Налаштування', 'Групи, пін, підключення', 'start.html#settings'],
     ['♻️', 'Відновити з копії', 'Завантажити файл копії', '', 'restore']
   ];
   function toolsMenu() {
@@ -539,7 +541,11 @@
     } else if (s.type === 'num') {
       h += '<div class="grid" style="margin-top:10px"><div><label class="f">Правильне число</label>' + inp(p + '.ans', q.ans, { type: 'number', k: 'n' }) + '</div>' +
         '<div><label class="f">Допуск ± (0 — точно)</label>' + inp(p + '.tol', q.tol, { type: 'number', k: 'n' }) + '</div>' +
-        '<div><label class="f">Одиниці (показуються поруч, необов\'язково)</label>' + inp(p + '.unit', q.unit, { ph: 'м, км, %' }) + '</div></div>';
+        '<div><label class="f">Одиниці (показуються поруч, необов\'язково)</label>' + inp(p + '.unit', q.unit, { ph: 'м, км, %' }) + '</div></div>' +
+        '<details class="media"' + (q.params ? ' open' : '') + '><summary>Свої числа для кожного учня (необов\'язково)</summary>' +
+        '<p class="help">У тексті питання напишіть {a}, {b}. Нижче задайте, які значення вони можуть мати, і формулу відповіді. Кожен учень побачить свої числа, тож «скинути відповідь» не вийде. Приклад: «Швидкість {v} км/год, час {t} год. Який шлях?», числа <code>v=40..80:10; t=2|3|4</code>, формула <code>v*t</code>.</p>' +
+        '<div class="grid"><div><label class="f">Числа (через «;»: <code>a=2..8</code>, <code>b=10..50:5</code>, <code>k=3|5|8</code>)</label>' + inp(p + '.params', q.params, { ph: 'v=40..80:10; t=2|3|4' }) + '</div>' +
+        '<div><label class="f">Формула відповіді (+ − * / ^ ( ), sqrt, round, abs)</label>' + inp(p + '.formula', q.formula, { ph: 'v*t' }) + '</div></div></details>';
     } else if (s.type === 'group') {
       h += '<label class="f" style="margin-top:10px">Групи (по одній у рядку)</label><textarea data-p="' + p + '.cats" data-k="lines" data-r="1" rows="3">' + esc((q.cats || []).join('\n')) + '</textarea>';
       h += '<label class="f" style="margin-top:10px">Елементи та їхня правильна група</label>';
@@ -772,7 +778,7 @@
       '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>' +
       '<div><label class="f">Спільний таймер на роботу</label><select data-p="noTimer" data-k="bool"><option value="false"' + (t.noTimer !== true ? ' selected' : '') + '>Є (запускається при «Відкрити доступ»)</option><option value="true"' + (t.noTimer === true ? ' selected' : '') + '>Немає (лише час на питання)</option></select></div>' +
       '<div><label class="f">Час на всю роботу, хв (якщо таймер є; порожньо — 15)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Водяний знак з іменем учня на екрані</label><select data-p="watermark" data-k="bool"><option value="false"' + (t.watermark !== true ? ' selected' : '') + '>Вимкнено</option><option value="true"' + (t.watermark === true ? ' selected' : '') + '>Увімкнено (стримує фото екрана)</option></select></div>' +
+      '<div><label class="f">Водяний знак з іменем учня на екрані</label><select data-p="watermark" data-k="bool"><option value="true"' + (t.watermark !== false ? ' selected' : '') + '>Увімкнено (ім’я, клас і час; стримує фото екрана)</option><option value="false"' + (!(t.watermark !== false) ? ' selected' : '') + '>Вимкнено</option></select></div>' +'<div><label class="f">Щит при розділеному екрані / втраті фокуса</label><select data-p="shield" data-k="bool"><option value="true"' + (t.shield !== false ? ' selected' : '') + '>Ховати питання (iPad і планшети)</option><option value="false"' + (!(t.shield !== false) ? ' selected' : '') + '>Не ховати</option></select><div class="muted" style="font-size:12px;margin-top:3px">Якщо екран розділено, відкрито Slide Over чи інше вікно, питання зникає, а час іде.</div></div>' +'<div><label class="f">Захист малюнків від «Знайти» / Live Text / Lens</label><select data-p="canvasImg" data-k="bool"><option value="true"' + (t.canvasImg !== false ? ' selected' : '') + '>Малювати малюнки в canvas</option><option value="false"' + (!(t.canvasImg !== false) ? ' selected' : '') + '>Звичайні малюнки</option></select><div class="muted" style="font-size:12px;margin-top:3px">Довге натискання на малюнок не пропонує пошук чи копіювання.</div></div>' +'<div><label class="f">Текст питання зображенням (за бажанням)</label><select data-p="textImg" data-k="bool"><option value="true"' + (t.textImg === true ? ' selected' : '') + '>Текст питання зображенням</option><option value="false"' + (!(t.textImg === true) ? ' selected' : '') + '>Текст питання як текст</option></select><div class="muted" style="font-size:12px;margin-top:3px">Сторінка не містить тексту питання для Siri, «Читача», перекладача й розширень ШІ. Мінус: гірше для екранних читалок.</div></div>' +'<div><label class="f">Пастки для ШІ-асистентів</label><select data-p="traps" data-k="bool"><option value="true"' + (t.traps !== false ? ' selected' : '') + '>Приховані пастки для ШІ у відкритих і коротких відповідях</option><option value="false"' + (!(t.traps !== false) ? ' selected' : '') + '>Вимкнено</option></select><div class="muted" style="font-size:12px;margin-top:3px">Невидиме слово-мітка: якщо воно потрапило у відповідь, ви побачите це в ризиках.</div></div>' +'<div><label class="f">Контрольні перепитання наприкінці (0 балів)</label><select data-p="recheck" data-k="n">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + ((+t.recheck || 0) === n ? ' selected' : '') + '>' + (n ? n + ' пит.' : 'Немає') + '</option>').join('') + '</select><div class="muted" style="font-size:12px;margin-top:3px">Те саме питання з іншим порядком варіантів. Якщо учень змінив правильну відповідь — сигнал ризику. Учню виглядає як звичайне питання.</div></div>' +'<div><label class="f">iPad: підказка «Кероване доступ» на старті</label><select data-p="guided" data-k="bool"><option value="true"' + (t.guided === true ? ' selected' : '') + '>Показувати підказку про Кероване доступ</option><option value="false"' + (!(t.guided === true) ? ' selected' : '') + '>Не показувати</option></select><div class="muted" style="font-size:12px;margin-top:3px">Короткий чек-лист для учнів на стартовому екрані (для шкільних iPad).</div></div>' +
       '<div><label class="f">Орієнтовна оцінка після здачі</label><select data-p="showGrade" data-k="bool"><option value="true"' + (t.showGrade !== false ? ' selected' : '') + '>Показувати учню</option><option value="false"' + (t.showGrade === false ? ' selected' : '') + '>Не показувати</option></select></div>' +
       '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div>' +
       '<div><label class="f">Виходи зі сторінки: що бачить учень</label><select data-p="warn" data-k="bool"><option value="false"' + (t.warn !== true ? ' selected' : '') + '>Нічого (тільки записувати вам)</option><option value="true"' + (t.warn === true ? ' selected' : '') + '>Показувати попередження й перервати при перевищенні лімітів</option></select></div></div>' +
@@ -939,22 +945,27 @@
       S.res = await api('t_results', { id: S.cur.id });
       if (S.rf.round == null) S.rf.round = S.res.ctrl.round;
       drawResults(); if (S.rd !== null) drawDetail();
+      if (!S.seatTried) {   // розсадка потрібна лише для позначки «сидять поруч» у підозрілих парах
+        S.seatTried = true;
+        loadSeats().then(ok => { if (ok && S.view === 'res') { drawResults(); if (S.rd !== null) drawDetail(); } }).catch(() => {});
+      }
     } catch (e) { if (e.message !== 'pin' && !silent) toast(e.message, true); }
   }
   function drawResults() {
     if (S.view !== 'res') return;
     const rounds = Array.from(new Set(S.res.rows.map(r => r.round).concat([S.res.ctrl.round]))).sort((a, b) => a - b);
     const groups = Array.from(new Set(S.res.rows.map(r => r.cls))).sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
+    try { S.rk = computeRisk(); } catch (e) { S.rk = null; console.error(e); }
     const rows = filtered(), fin = rows.filter(r => isFin(r.status));
     $('#resbody').innerHTML = '<div class="filters"><div><label class="f">Спроба</label><select id="f-round">' + rounds.map(x => '<option value="' + x + '"' + (x === S.rf.round ? ' selected' : '') + '>№' + x + '</option>').join('') + '</select></div>' +
       '<div><label class="f">Група</label><select id="f-group"><option value="">Усі</option>' + groups.map(g => '<option' + (g === S.rf.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
-      '<button class="btn ghost" data-act="res-refresh">Оновити</button><button class="btn ghost" data-act="q-an">📈 Аналіз питань</button></div>' +
+      '<button class="btn ghost" data-act="res-refresh">Оновити</button><button class="btn ghost" data-act="q-an">📈 Аналіз питань</button><button class="btn ghost" data-act="pairs">🔍 Підозрілі пари' + (S.rk && S.rk.pairs.length ? ' (' + S.rk.pairs.length + ')' : '') + '</button></div>' +
       '<div class="gradebox" style="align-items:center"><div style="flex:1 1 260px"><b>Занести в журнал</b><div class="muted" style="font-size:13px">Оцінки потрапляють у журнал лише за цією кнопкою. Якщо ви виставили оцінку вручну — заноситься вона, інакше автоматична.</div></div>' +
       '<label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-time"' + (S.rf.byTime ? ' checked' : '') + '> за часом</label><label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="f-over"' + (S.rf.overwrite ? ' checked' : '') + '> перезаписати наявні</label>' +
       '<button class="btn" data-act="res-journal-all"' + (fin.length ? '' : ' disabled') + '>Занести завершені (' + fin.length + ')</button></div>' +
-      (rows.length ? '<div style="overflow:auto"><table class="mon"><tr><th>Група</th><th>Учень</th><th>Час</th><th>Статус</th><th>Бали</th><th>Оцінка авто</th><th>Оцінка вчителя</th><th></th></tr>' +
+      (rows.length ? '<div style="overflow:auto"><table class="mon"><tr><th>Група</th><th>Учень</th><th>Час</th><th>Статус</th><th>Бали</th><th>Ризик</th><th>Оцінка авто</th><th>Оцінка вчителя</th><th></th></tr>' +
         rows.map((r, i) => { const k = /^Завершено/.test(r.status) ? 'done' : (/^Перервано|^Вийшов/.test(r.status) ? 'bad' : 'prog'), ag = autoGrade(r);
-          return '<tr class="clk" data-act="rd-open" data-i="' + i + '"><td>' + esc(r.cls) + '</td><td>' + esc(r.name) + '</td><td style="white-space:nowrap">' + esc(r.time) + '</td><td><span class="st ' + k + '">' + esc(r.status) + '</span></td><td>' + esc(r.total) + (r.total !== '' ? ' / ' + S.res.max : '') + '</td><td>' + (ag !== '' ? '<span class="gtag a">' + ag + '</span>' : '—') + '</td><td>' + (r.final !== '' ? '<span class="gtag t">' + esc(r.final) + '</span>' : '—') + '</td><td><button class="icon x" data-act="rd-del" data-i="' + i + '" title="Видалити роботу">🗑</button></td></tr>'; }).join('') + '</table></div>'
+          return '<tr class="clk" data-act="rd-open" data-i="' + i + '"><td>' + esc(r.cls) + '</td><td>' + esc(r.name) + '</td><td style="white-space:nowrap">' + esc(r.time) + '</td><td><span class="st ' + k + '">' + esc(r.status) + '</span></td><td>' + esc(r.total) + (r.total !== '' ? ' / ' + S.res.max : '') + '</td><td>' + rkDot(r) + '</td><td>' + (ag !== '' ? '<span class="gtag a">' + ag + '</span>' : '—') + '</td><td>' + (r.final !== '' ? '<span class="gtag t">' + esc(r.final) + '</span>' : '—') + '</td><td><button class="icon x" data-act="rd-del" data-i="' + i + '" title="Видалити роботу">🗑</button></td></tr>'; }).join('') + '</table></div>'
         : '<div class="empty">У цій спробі ще немає робіт.</div>');
     $('#f-round').onchange = e => { S.rf.round = +e.target.value; drawResults(); };
     $('#f-group').onchange = e => { S.rf.group = e.target.value; drawResults(); };
@@ -974,6 +985,117 @@
   function leaveList(row) { return String(row.leaveLog || '').split(';').filter(Boolean).map(x => { const a = x.split('|'); return { s: a[0], k: a[1], d: +a[2] || 0 }; }); }
   function qTimes(row) { const o = {}; String(row.qTime || '').split(';').filter(Boolean).forEach(x => { const a = x.split(':'); o[a[0]] = +a[1] || 0; }); return o; }
   const leaveTxt = e => (LK[e.k] || e.k) + (e.k === 'resume' ? '' : ', ' + (e.d < 1 ? '<1' : e.d) + ' с');
+
+  /* ---------- сигнали ризику списування (лише підказка вчителю, нічого не карає автоматично) ---------- */
+  // колонка «Сигнали»: S:питання,перша дія с,символів,подій друку,стирань,секунд друку;… | T:пастки ШІ | R:нове>перше:збіг:перша була правильна
+  function sigOf(row) {
+    const out = { q: {}, trap: [], re: [] }, m = String(row.sig || '').match(/^S:(.*?)\|T:(.*?)\|R:(.*)$/);
+    if (!m) return out;
+    m[1].split(';').filter(Boolean).forEach(x => { const a = x.split(','); out.q[a[0]] = { ft: a[1] === '' || a[1] == null ? null : +a[1], ch: +a[2] || 0, ks: +a[3] || 0, dl: +a[4] || 0, act: +a[5] || 0 }; });
+    out.trap = m[2].split(',').filter(Boolean);
+    m[3].split(';').filter(Boolean).forEach(x => { const k = x.match(/^(q\d+)>(q\d+):([01]):([01])$/); if (k) out.re.push({ slot: k[1], of: k[2], same: k[3] === '1', was: k[4] === '1' }); });
+    return out;
+  }
+  const rkey = r => r.cls + '|' + r.name;
+  const medianOf = a => { a = a.slice().sort((x, y) => x - y); const n = a.length; return n ? (n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2) : 0; };
+  function neighbors(cls, a, b) {
+    const m = S.seat && S.seat[cls]; if (!m) return false;
+    const p = m[String(a).trim().toLowerCase()], q = m[String(b).trim().toLowerCase()];
+    return !!(p && q && Math.abs(p.r - q.r) <= 1 && Math.abs(p.c - q.c) <= 1);
+  }
+  async function loadSeats() {
+    S.seat = S.seat || {}; let any = false;
+    for (const c of Array.from(new Set(S.res.rows.map(r => r.cls))).filter(c => !(c in S.seat))) {
+      try {
+        const d = await api('t_seat_get', { cls: c, room: '' }), L = d && d.layout, m = {};
+        if (L && L.grid) L.grid.forEach((row, ri) => (row || []).forEach((desk, ci) => (desk || []).forEach(n => { n = String(n || '').trim().toLowerCase(); if (n) m[n] = { r: ri, c: ci }; })));
+        S.seat[c] = m; any = true;
+      } catch (e) { S.seat[c] = null; }
+    }
+    return any;
+  }
+  // Повертає { pairs, risk: { 'клас|учень': { score, level, reasons[] } } } для спроби, що відкрита у фільтрі
+  function computeRisk() {
+    const rows = S.res.rows.filter(r => r.round === S.rf.round), idx = qIndex(), risk = {};
+    const wrong = rows.map(r => {
+      const o = {};
+      Object.keys(r.answers).forEach(slot => {
+        const a = parseAns(r.answers[slot]); if (a.open || a.earned == null || !a.pid || a.pid.indexOf('tf:') === 0) return;
+        const info = idx[a.pid]; if (!info) return;
+        const max = +info.s.points || 0; if (!max || a.earned >= max - 0.001) return;
+        if (info.s.type === 'num' && info.q.params) return;   // у кожного свої числа
+        const t = String(a.shown || '').split(' ‖ ')[0].trim(); if (!t || t === '—') return;
+        o[a.pid] = { t, q: info.q.text };
+      });
+      return o;
+    });
+    const cnt = {};
+    wrong.forEach(o => Object.keys(o).forEach(p => { const k = p + '\u0001' + o[p].t; cnt[k] = (cnt[k] || 0) + 1; }));
+    const pairs = [];
+    for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) {
+      let sc = 0, n = 0; const ex = [];
+      Object.keys(wrong[i]).forEach(p => { const b = wrong[j][p]; if (b && b.t === wrong[i][p].t) { n++; sc += 1 / Math.max(1, cnt[p + '\u0001' + b.t] - 1); if (ex.length < 3) ex.push({ q: b.q, t: b.t }); } });
+      if (n >= 2 && sc >= 1.5) pairs.push({ a: rows[i], b: rows[j], n, sc: Math.round(sc * 10) / 10, ex, nb: rows[i].cls === rows[j].cls && neighbors(rows[i].cls, rows[i].name, rows[j].name) });
+    }
+    pairs.sort((x, y) => (y.sc + (y.nb ? 2 : 0)) - (x.sc + (x.nb ? 2 : 0)));
+    const totals = rows.map(r => Object.values(qTimes(r)).reduce((a, b) => a + b, 0)).filter((t, i) => t > 0 && isFin(rows[i].status));
+    const med = medianOf(totals);
+    rows.forEach(r => {
+      const reasons = [], add = (pts, txt) => { reasons.push({ pts, txt }); };
+      const lv = leaveList(r).filter(e => e.k !== 'resume'), sg = sigOf(r), tm = qTimes(r);
+      const heavy = lv.filter(e => e.k === 'split' || e.k === 'focus' || e.k === 'fs');
+      if (heavy.length) add(Math.min(40, heavy.length * 20), 'розділений екран / втрата фокуса / вихід з повного екрана: ' + heavy.length + ' р.' + (heavy.some(e => e.s) ? ' (питання ' + Array.from(new Set(heavy.filter(e => e.s).map(e => e.s.slice(1)))).join(', ') + ')' : ''));
+      const soft = lv.filter(e => e.k === 'hidden' || e.k === 'blur');
+      if (soft.length) add(Math.min(24, soft.length * 6), 'виходів зі сторінки/вкладки: ' + soft.length);
+      const away = +r.away || 0; if (away > 90) add(20, 'поза сторінкою ' + away + ' с'); else if (away > 30) add(10, 'поза сторінкою ' + away + ' с');
+      const lc = Array.from(new Set(lv.filter(e => e.s).map(e => e.s))).filter(s => { const a = parseAns(r.answers[s] || ''); return a.earned != null && a.earned > 0; });
+      if (lc.length) add(Math.min(24, lc.length * 8), 'вийшов зі сторінки на питанні й відповів правильно: ' + lc.map(s => s.slice(1)).join(', '));
+      const ps = +r.pastes || 0; if (ps) add(Math.min(15, ps * 5), 'спроб вставити текст: ' + ps);
+      if (sg.trap.length) add(40, 'у відповіді є приховане слово-пастка для ШІ (питання ' + sg.trap.map(s => s.slice(1)).join(', ') + ')');
+      const ty = [];
+      Object.keys(sg.q).forEach(s => {
+        const x = sg.q[s];
+        if (x.ch >= 60 && x.act > 0 && x.ch / x.act > 7) ty.push(s.slice(1) + ' — надто швидкий друк (' + Math.round(x.ch / x.act) + ' симв./с)');
+        else if (x.ch >= 40 && x.ks > 0 && x.ch / x.ks > 1.6) ty.push(s.slice(1) + ' — текст з’являвся шматками (диктування/підказки)');
+        else if (x.ch >= 100 && x.dl === 0) ty.push(s.slice(1) + ' — довга відповідь без жодного виправлення');
+      });
+      if (ty.length) add(Math.min(30, ty.length * 10), 'незвичний друк: ' + ty.join('; '));
+      const tot = Object.values(tm).reduce((a, b) => a + b, 0);
+      if (isFin(r.status) && med > 0 && tot > 0 && tot < med * 0.4) add(12, 'здав удвічі-втричі швидше за клас (' + tot + ' с проти ~' + Math.round(med) + ' с)');
+      const fast = Object.keys(sg.q).filter(s => sg.q[s].ft != null && sg.q[s].ft < 1.5 && (parseAns(r.answers[s] || '').earned || 0) > 0);
+      if (fast.length >= 3) add(10, 'правильна відповідь менш ніж за 1,5 с на ' + fast.length + ' питаннях');
+      const bad = sg.re.filter(x => x.was && !x.same);
+      if (bad.length) add(Math.min(20, bad.length * 10), 'на контрольному перепитанні змінив правильну відповідь (' + bad.map(x => x.slot.slice(1)).join(', ') + ')');
+      risk[rkey(r)] = { reasons };
+    });
+    pairs.forEach(p => {
+      [[p.a, p.b], [p.b, p.a]].forEach(([x, y]) => {
+        const pts = (p.sc >= 3 ? 40 : 25) + (p.nb ? 10 : 0);
+        risk[rkey(x)].reasons.push({ pts, txt: 'однакові неправильні відповіді з ' + y.name + ' (' + p.n + ' спіл., оцінка ' + p.sc + (p.nb ? ', сидять поруч' : '') + ')' });
+      });
+    });
+    Object.keys(risk).forEach(k => { const o = risk[k]; o.score = Math.min(100, o.reasons.reduce((a, x) => a + x.pts, 0)); o.level = o.score >= 50 ? 'high' : o.score >= 25 ? 'mid' : 'low'; });
+    return { pairs, risk };
+  }
+  const RK_COL = { high: '#c0392b', mid: '#e0a100', low: '#1f9d55' }, RK_TXT = { high: 'високий', mid: 'помірний', low: 'низький' };
+  function rkDot(r) {
+    const o = S.rk && S.rk.risk[rkey(r)]; if (!o) return '—';
+    return '<span title="' + esc(o.reasons.map(x => x.txt).join('\n') || 'сигналів немає') + '" style="display:inline-flex;align-items:center;gap:5px;font-weight:700;color:' + RK_COL[o.level] + '"><i style="width:11px;height:11px;border-radius:50%;background:' + RK_COL[o.level] + ';display:inline-block"></i>' + o.score + '</span>';
+  }
+  function rkBox(r) {
+    const o = S.rk && S.rk.risk[rkey(r)]; if (!o) return '';
+    return '<div style="margin-top:8px;padding:8px 12px;border-radius:10px;border:1.5px solid ' + RK_COL[o.level] + ';background:#fff"><b style="color:' + RK_COL[o.level] + '">Ризик списування: ' + RK_TXT[o.level] + ' (' + o.score + ')</b>' +
+      (o.reasons.length ? '<ul style="margin:6px 0 0;padding-left:20px;font-size:13.5px">' + o.reasons.map(x => '<li>' + esc(x.txt) + ' <span class="muted">+' + x.pts + '</span></li>').join('') + '</ul>' : '<div class="muted" style="font-size:13.5px">Сигналів немає.</div>') +
+      '<div class="muted" style="font-size:12px;margin-top:4px">Це підказка, а не вирок: перевірте відповіді й за потреби поговоріть з учнем.</div></div>';
+  }
+  function showPairs() {
+    const P = (S.rk && S.rk.pairs) || [];
+    let host = $('#an'); if (!host) { host = document.createElement('div'); host.id = 'an'; document.body.appendChild(host); }
+    host.className = 'rd-back';
+    host.innerHTML = '<div class="rd-panel" style="max-width:980px"><div style="display:flex;gap:10px;align-items:center"><h2 style="margin:0;flex:1">🔍 Підозрілі пари</h2><button class="btn ghost" data-act="an-close">Закрити</button></div>' +
+      '<p class="muted" style="font-size:14px">Спроба №' + S.rf.round + '. Пари учнів з однаковими <b>неправильними</b> відповідями на кількох питаннях. Чим рідкісніша спільна помилка, тим вищий бал. «Поруч» — за розсадкою основного кабінету.</p>' +
+      (P.length ? '<div style="overflow:auto"><table class="an-t"><tr><th>Учні</th><th>Збігів</th><th>Бал</th><th>Приклади спільних помилок</th></tr>' + P.map(p => '<tr><td><b>' + esc(p.a.name) + '</b> <span class="muted">' + esc(p.a.cls) + '</span><br><b>' + esc(p.b.name) + '</b> <span class="muted">' + esc(p.b.cls) + '</span>' + (p.nb ? '<br><span style="color:#c0392b;font-weight:700">сидять поруч</span>' : '') + '</td><td>' + p.n + '</td><td class="pc" style="color:' + (p.sc >= 3 ? '#c0392b' : '#e0a100') + '">' + p.sc + '</td><td>' + p.ex.map(e => '<div class="wr">' + esc(String(e.q || '').slice(0, 90)) + ' → «' + esc(e.t) + '»</div>').join('') + '</td></tr>').join('') + '</table></div>' : '<div class="empty">Підозрілих збігів не знайдено.</div>') + '</div>';
+  }
   function answerCard(slot, raw, row, idx) {
     const a = parseAns(raw), n = slot.replace('q', '');
     let cls = '', title = '', body = '', good = '', max = null;
@@ -992,6 +1114,13 @@
     } else {
       const info = idx[a.pid], q = info && info.q, sec = info && info.s;
       title = q ? q.text : '(питання не знайдено в тесті — можливо, його змінили)'; max = sec ? +sec.points : null;
+      let pnote = '';
+      if (sec && sec.type === 'num' && String(a.shown).indexOf(' ‖ ') >= 0) {   // питання зі своїми числами: показуємо умову саме цього учня
+        const pp = String(a.shown).split(' ‖ '), vals = {}; (pp[1] || '').split(' → ')[0].split(', ').forEach(kv => { const e = kv.split('='); if (e.length === 2) vals[e[0]] = e[1]; });
+        title = String(q.text || '').replace(/\{([a-zA-Z_]\w*)\}/g, (m, n) => Object.prototype.hasOwnProperty.call(vals, n) ? vals[n] : m);
+        pnote = 'Правильно для його чисел: ' + ((pp[1] || '').split(' → ')[1] || '?') + (q.unit ? ' ' + q.unit : '');
+        a.shown = pp[0];
+      }
       body = '<div class="st-ans">' + (esc(a.shown) || '<span class="muted">(порожньо)</span>') + '</div>';
       if (q && sec) {
         if (sec.type === 'mcq') good = 'Правильно: ' + q.o[0];
@@ -1001,7 +1130,7 @@
         else if (sec.type === 'label') good = 'Правильно: ' + q.marks.map((m, i) => (i + 1) + ') ' + m.a).join('; ');
         else if (sec.type === 'order') good = 'Правильний порядок: ' + (q.items || []).join(' → ');
         else if (sec.type === 'cloze') good = 'Правильно: ' + (String(q.text).match(/\[\[[^\]]+\]\]/g) || []).map((g, i) => (i + 1) + ') ' + g.slice(2, -2)).join('; ');
-        else if (sec.type === 'num') good = 'Правильно: ' + q.ans + (+q.tol ? ' ± ' + q.tol : '') + (q.unit ? ' ' + q.unit : '');
+        else if (sec.type === 'num') good = pnote || ('Правильно: ' + q.ans + (+q.tol ? ' ± ' + q.tol : '') + (q.unit ? ' ' + q.unit : ''));
         else if (sec.type === 'group') good = 'Правильно: ' + (q.items || []).map(it => it.t + ' → ' + (q.cats || [])[it.c]).join('; ');
         else if (sec.type === 'find') good = 'Треба було виділити: ' + (String(q.passage).match(/\S*\*\S*/g) || []).map(x => x.replace(/\*/g, '')).join('; ');
       }
@@ -1023,7 +1152,7 @@
     host.className = 'rd-back';
     host.innerHTML = '<div class="rd-panel"><div class="rd-h"><div class="ttl">' + esc(r.name) + '<div class="muted" style="font-size:14px;font-weight:500">' + esc(r.cls) + ' · ' + esc(r.status) + ' · ' + esc(r.time) + '</div></div>' +
       '<button class="icon" data-act="rd-prev" title="Попередній">←</button><button class="icon" data-act="rd-next" title="Наступний">→</button><button class="icon x" data-act="rd-del" data-i="' + S.rd + '" title="Видалити цю роботу">🗑</button><button class="icon x" data-act="rd-close" title="Закрити">✕</button></div>' +
-      '<div class="muted" style="font-size:14px">Автобал: <b>' + esc(r.auto) + '</b> · відкриті (авто): <b>' + esc(r.open) + '</b> · разом: <b>' + esc(r.total) + (S.res.max ? ' з ' + S.res.max : '') + '</b> · виходів: ' + esc(r.leaves) + ' (' + esc(r.away || 0) + ' с) · спроб вставки: ' + esc(r.pastes || 0) + '</div>' + (function () { const L = leaveList(r).filter(e => e.k !== 'resume'), out = L.filter(e => !e.s); return L.length ? '<div style="color:#b42318;font-size:13.5px;margin-top:6px">⚠ Виходи за питаннями: ' + L.filter(e => e.s).map(e => esc(e.s.slice(1)) + ' (' + esc(leaveTxt(e)) + ')').join('; ') + (out.length ? (L.length > out.length ? '; ' : '') + 'поза питаннями: ' + out.length : '') + '</div>' : ''; })() +
+      '<div class="muted" style="font-size:14px">Автобал: <b>' + esc(r.auto) + '</b> · відкриті (авто): <b>' + esc(r.open) + '</b> · разом: <b>' + esc(r.total) + (S.res.max ? ' з ' + S.res.max : '') + '</b> · виходів: ' + esc(r.leaves) + ' (' + esc(r.away || 0) + ' с) · спроб вставки: ' + esc(r.pastes || 0) + '</div>' + rkBox(r) + (function () { const L = leaveList(r).filter(e => e.k !== 'resume'), out = L.filter(e => !e.s); return L.length ? '<div style="color:#b42318;font-size:13.5px;margin-top:6px">⚠ Виходи за питаннями: ' + L.filter(e => e.s).map(e => esc(e.s.slice(1)) + ' (' + esc(leaveTxt(e)) + ')').join('; ') + (out.length ? (L.length > out.length ? '; ' : '') + 'поза питаннями: ' + out.length : '') + '</div>' : ''; })() +
       '<div class="gradebox"><div><label class="f">Фінальна оцінка (1–12)</label><input type="number" id="rd-grade" min="1" max="12" step="1" value="' + esc(cur) + '"></div>' +
       '<div class="muted" style="font-size:13px;flex:1 1 140px">Автоматична оцінка: <b>' + (ag !== '' ? ag : '—') + '</b>' + (r.final !== '' ? '<br>Ваша оцінка: <b>' + esc(r.final) + '</b>' : '') + '</div>' +
       '<button class="btn" data-act="rd-save">Зберегти оцінку</button><button class="btn ghost" data-act="rd-reset"' + (r.final === '' ? ' disabled' : '') + '>Повернути автоматичну</button>' +
@@ -1225,6 +1354,19 @@
     m.className = 'rd-back'; m.innerHTML = '<div class="rd-panel" style="max-width:640px">' + html + '</div>'; return m;
   }
   const closeModal = () => { const m = $('#xm'); if (m) m.remove(); };
+  function showDevice() {   // QR-код: сканується телефоном і відкриває кабінет, уже підключений до вашого скрипта (пін вводиться вручну)
+    const mm = String(SCRIPT_URL || '').match(/^https:\/\/script\.google\.com\/macros\/s\/([\w-]+)\/exec$/);
+    const link = new URL('editor.html', location.href).href + '?api=' + (mm ? mm[1] : encodeURIComponent(SCRIPT_URL || ''));
+    const svg = window.QR ? QR.svg(link, 240) : '';
+    const m = modal('<h2 style="margin-top:0">📱 Вхід на іншому пристрої</h2>' +
+      '<p>Наведіть камеру телефона чи планшета на QR-код — відкриється ваш кабінет, підключений до вашого скрипта. Далі лишається ввести пін.</p>' +
+      '<div style="text-align:center;margin:10px 0">' + (svg || '<div class="muted">QR-код недоступний — скористайтеся посиланням нижче.</div>') + '</div>' +
+      '<input id="dvlink" readonly value="' + esc(link) + '" style="width:100%">' +
+      '<p class="muted" style="font-size:13px">У коді немає піна, тож сторонній, хто його побачить, у кабінет не потрапить без піна. Але не публікуйте цей код і посилання відкрито.</p>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" id="dvcopy">Копіювати посилання</button><button class="btn" id="dvx">Закрити</button></div>');
+    m.querySelector('#dvx').onclick = closeModal;
+    m.querySelector('#dvcopy').onclick = () => { const i = m.querySelector('#dvlink'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (x) { document.execCommand('copy'); } toast('Скопійовано'); };
+  }
   async function bankPull() {
     toast('Завантажую банк…');
     try { await bankLoad(); } catch (e) { if (e.message !== 'pin') toast(e.message, true); return; }
@@ -1327,7 +1469,7 @@
           try { await api('t_save', { id: x.id, json: JSON.stringify(x.test) }); if (x.folder) await api('t_folder', { id: x.id, folder: x.folder }); ok++; }
           catch (e) { if (e.message === 'pin') return; bad.push((x.test && x.test.title) || x.id); }
         }
-        for (const cls of Object.keys(d.seats || {})) await api('t_seat_save', { cls, json: JSON.stringify(d.seats[cls]) });
+        for (const key of Object.keys(d.seats || {})) { const pr = key.split(' @ '); await api('t_seat_save', { cls: pr[0], room: pr[1] || '', json: JSON.stringify(d.seats[key]) }); }
         const items = (d.bank || []).map(b => ({ type: b.type, topic: b.topic, grade: b.grade, subject: b.subject, q: b.q }));
         for (let i = 0; i < items.length; i += 30) await api('t_bank_save', { items: JSON.stringify(items.slice(i, i + 30)) });
         toast('Відновлено робіт: ' + ok + (bad.length ? '. Не вдалося: ' + bad.join(', ') : ''), bad.length > 0);
@@ -1354,9 +1496,11 @@
         catch (er) { if (er.message !== 'pin') toast(er.message, true); }
         return; }
       case 'bank': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return showBank();
+      case 'device': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return showDevice();
       case 'backup': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return doBackup();
       case 'restore': document.querySelectorAll('details.tools[open]').forEach(d => d.open = false); return doRestore();
       case 'q-an': return showAnalysis();
+      case 'pairs': return showPairs();
       case 'an-close': { const m = $('#an'); if (m) m.remove(); return; }
       case 'modal-close': AIREV = null; return closeModal();
       case 'ai-accept': return aiAccept();
@@ -1541,5 +1685,6 @@
   })();
 })();
 </script>
+<script src="qr.js"></script>
 </body>
 </html>
