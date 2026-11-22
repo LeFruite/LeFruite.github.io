@@ -4,6 +4,8 @@
 <link rel="preconnect" href="https://script.google.com"><link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Самостійна"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="color-scheme" content="light">
 <title>Самостійна робота</title>
 <script src="config.js"></script>
@@ -88,6 +90,11 @@
   .stage canvas.cimg { border: 0; border-radius: 0; max-height: 62vh; width: auto; margin: 0; }
   canvas.qtc { border: 0; border-radius: 0; background: transparent; min-height: 0; margin: 0; }
   .question-title { position: relative; }
+  html.nz, html.nz body, html.nz * { touch-action: pan-x pan-y; }
+  .zbtn { display: block; margin: 6px auto 0; padding: 8px 16px; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  #zoomov { position: fixed; inset: 0; z-index: 8000; background: rgba(10,18,22,.94); overflow: auto; -webkit-overflow-scrolling: touch; }
+  #zoomov canvas { display: block; margin: 56px auto 24px; max-width: none; background: #fff; pointer-events: none; }
+  #zoomov button { position: fixed; top: 10px; right: 10px; z-index: 8001; padding: 10px 18px; border-radius: 10px; border: 0; background: #fff; font-size: 16px; font-weight: 700; }
   .trp { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   #shield { position: fixed; inset: 0; background: #22343a; color: #fff; display: flex; align-items: center; justify-content: center; text-align: center; padding: 30px; z-index: 9000; font-size: 19px; }
   #ga-box { margin: 10px 0 0; font-size: 14px; } #ga-box summary { cursor: pointer; font-weight: 700; color: var(--accent-dark); } #ga-box ol { margin: 6px 0 0; padding-left: 20px; }
@@ -180,6 +187,7 @@
       <p class="hint-small">Після початку не згортайте сторінку, не перемикайте вкладки й не виходьте — це фіксується. Роботу можна пройти лише один раз. На кожне питання відведено обмежений час.</p>
       <details id="ga-box" class="hidden"><summary>iPad: як закріпити екран перед початком</summary>
         <ol><li>Один раз: Налаштування → Універсальний доступ → Кероване доступ → увімкнути.</li><li>Відкрийте цю сторінку на весь екран (без розділення й без Slide Over).</li><li>Тричі швидко натисніть верхню (або Home) кнопку → «Почати».</li></ol>
+        <p style="margin:8px 0 0">Без вкладок Safari: Поділитися → «На початковий екран», потім відкрийте роботу з іконки.</p>
       </details>
       <button id="start-btn" disabled>Розпочати</button>
     </div>
@@ -229,6 +237,7 @@
     <div style="font-size:52px;">🔒</div>
     <p><b>Питання приховано</b></p>
     <p id="shield-msg">Робота відкрита не на весь екран або інше вікно забрало фокус. Закрийте інші вікна й розгорніть цю сторінку на весь екран — питання з'явиться знову. Час іде.</p>
+    <button id="shield-ok" class="hidden" style="margin-top:14px;padding:12px 22px;border-radius:12px;border:0;background:#fff;color:#22343a;font-size:17px;font-weight:700;">Повернутися до роботи</button>
   </div>
 </div>
 <div id="fs-overlay" class="hidden"><div><div>Робота йде у повноекранному режимі. Поверніться на повний екран, щоб продовжити.</div><button id="fs-btn">На повний екран</button></div></div>
@@ -325,7 +334,7 @@
   const picTag = src => canvasOn() ? '<canvas class="cimg" data-src="' + esc(src) + '" aria-hidden="true"></canvas>' : '<img src="' + esc(src) + '" alt="" draggable="false">';
   function imgHtml(q) {
     if (!q.img) return '';
-    return '<figure class="media">' + picTag(q.img) + (q.imgCap ? '<figcaption>' + esc(q.imgCap) + '</figcaption>' : '') + '</figure>';
+    return '<figure class="media">' + picTag(q.img) + (canvasOn() && !(TEST && TEST.imgZoom === false) ? '<button type="button" class="zbtn" data-zoom="1">🔍 Збільшити</button>' : '') + (q.imgCap ? '<figcaption>' + esc(q.imgCap) + '</figcaption>' : '') + '</figure>';
   }
   /* Малюнок завантажується й малюється в canvas: довге натискання не дає «Знайти», «Копіювати», Live Text чи «Відкрити в новій вкладці» */
   function paintCanvases(root) {
@@ -341,7 +350,31 @@
       im.src = src;
     });
   }
-  /* Текст питання зображенням (за вибором вчителя): сторінка не містить тексту питання для «Читача», Siri, перекладача чи розширень ШІ */
+  // Збільшення лише малюнка (сторінка при цьому не масштабується): копія canvas у прокручуваному шарі
+  document.addEventListener('click', e => {
+    const bt = e.target.closest && e.target.closest('[data-zoom]'); if (!bt) return;
+    const src = bt.parentNode.querySelector('canvas.cimg'); if (!src || src.width < 2) return;
+    const ov = document.createElement('div'); ov.id = 'zoomov';
+    const cv = document.createElement('canvas'); cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0);
+    cv.style.width = Math.round(Math.max(innerWidth * 2.2, src.width)) + 'px';
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '✕ Закрити'; x.onclick = () => ov.remove();
+    ov.appendChild(cv); ov.appendChild(x); document.body.appendChild(ov);
+  });
+  // Заборона масштабування сторінки (pinch, подвійний дотик, Ctrl+колесо); за вибором вчителя
+  let zoomLocked = false;
+  function applyZoomLock() {
+    const on = !(TEST && TEST.zoomLock === false);
+    document.documentElement.classList.toggle('nz', on);
+    const m = document.querySelector('meta[name=viewport]');
+    if (m) m.content = on ? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' : 'width=device-width, initial-scale=1.0';
+    if (on && !zoomLocked) {
+      zoomLocked = true;
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => { if (!(TEST && TEST.zoomLock === false)) e.preventDefault(); }, { passive: false }));
+      document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1 && !(TEST && TEST.zoomLock === false) && !document.getElementById('zoomov')) e.preventDefault(); }, { passive: false });
+      document.addEventListener('wheel', e => { if (e.ctrlKey && !(TEST && TEST.zoomLock === false)) e.preventDefault(); }, { passive: false });
+    }
+  }
+  /* Текст питання (за вибором вчителя): сторінка не містить тексту питання для «Читача», Siri, перекладача чи розширень ШІ */
   function drawQText(cv) {
     const text = cv.dataset.t || '', host = cv.parentNode; if (!host) return;
     const w = Math.max(220, Math.floor(host.clientWidth || 300)), dpr = Math.min(2, window.devicePixelRatio || 1), fs = 19, lh = 27;
@@ -727,7 +760,7 @@
   /* ---------- Збереження стану (продовження після закриття сторінки) ---------- */
   function saveState() {
     if (PREVIEW || !isTestStarted || isSubmitted) return;
-    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, savedAt: Date.now(), leaveLog, qTime, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL], sig: { sigQ, ftSlot, trapHits, trapWord, recheck, shownBy, okBy, BASE, test: TEST ? { warn: TEST.warn, fs: TEST.fs, watermark: TEST.watermark, shield: TEST.shield, canvasImg: TEST.canvasImg, textImg: TEST.textImg, traps: TEST.traps, readTime: TEST.readTime, noTimer: TEST.noTimer, totalTime: TEST.totalTime, showGrade: TEST.showGrade } : null } })); } catch (e) {}
+    try { localStorage.setItem(ST_KEY, JSON.stringify({ round: myRound, stop: myStop, className, studentName, questions, currentQ, answers, testScore, leaves, pastes: pasteAttempts, awayTotal, timeLeft, savedAt: Date.now(), leaveLog, qTime, away: [MAX_AWAY_ONE, MAX_AWAY_TOTAL], sig: { sigQ, ftSlot, trapHits, trapWord, recheck, shownBy, okBy, BASE, test: TEST ? { warn: TEST.warn, fs: TEST.fs, watermark: TEST.watermark, shield: TEST.shield, canvasImg: TEST.canvasImg, textImg: TEST.textImg, zoomLock: TEST.zoomLock, imgZoom: TEST.imgZoom, traps: TEST.traps, readTime: TEST.readTime, noTimer: TEST.noTimer, totalTime: TEST.totalTime, showGrade: TEST.showGrade } : null } })); } catch (e) {}
   }
   function clearState() { try { localStorage.removeItem(ST_KEY); } catch (e) {} }
   function loadState() { if (PREVIEW) return null; try { return JSON.parse(localStorage.getItem(ST_KEY) || 'null'); } catch (e) { return null; } }
@@ -839,23 +872,31 @@
     if (screen.orientation && screen.orientation.type) return /portrait/.test(screen.orientation.type) ? 'p' : 'l';
     return innerHeight >= innerWidth ? 'p' : 'l';
   };
-  // Розділений екран (Split View), Stage Manager, плаваюче вікно: ширина вікна менша за повну для цієї орієнтації
+  // Розділений екран (Split View), Stage Manager, плаваюче вікно: ширина вікна помітно впала відносно найбільшої, яку бачили в цій орієнтації.
+  // Висоту й розмір екрана не порівнюємо: панель Safari, клавіатура й бічна панель давали хибні спрацювання.
   function windowSplit() {
-    const o = orient(), b = BASE[o], sw = Math.max(screen.width, screen.height), sh = Math.min(screen.width, screen.height);
-    const fullW = o === 'l' ? sw : sh;                         // на iOS screen.width не завжди міняється з поворотом, тому беремо обидва розміри
-    const typing = /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || '');
-    const split = innerWidth < fullW * 0.85 || (b.w > 0 && innerWidth < b.w * 0.88) || (!typing && b.h > 0 && innerHeight < b.h * 0.72);
-    if (!split) { b.w = Math.max(b.w, innerWidth); b.h = Math.max(b.h, innerHeight); }
+    const b = BASE[orient()];
+    const split = b.w > 0 && innerWidth < b.w * 0.85;
+    if (!split) b.w = Math.max(b.w, innerWidth);
     return split;
   }
+  let dismissed = false, shieldSince = 0;
   const shieldOn = () => !!(TEST && TEST.shield === false) ? false : true;
   function setShield(on) {
-    on = on && shieldOn() && !PREVIEW && isTestStarted && !isSubmitted && !paused;
+    on = on && !dismissed && shieldOn() && !PREVIEW && isTestStarted && !isSubmitted && !paused;
     const s = $('shield'); if (!s || s.classList.contains('hidden') === !on) return;
     s.classList.toggle('hidden', !on);
+    if (on) { shieldSince = Date.now(); $('shield-ok').classList.add('hidden'); setTimeout(() => { if (!$('shield').classList.contains('hidden')) $('shield-ok').classList.remove('hidden'); }, 4000); }
     if (on) $('shield-msg').textContent = splitCnt >= 2 ? 'Роботу відкрито не на весь екран (розділений екран, Slide Over чи маленьке вікно). Закрийте інші вікна й розгорніть цю сторінку на весь екран — питання з\'явиться знову. Час іде.' : 'Ця сторінка втратила фокус: поруч відкрито інше вікно чи застосунок. Закрийте його й торкніться екрана — питання з\'явиться знову. Час іде.';
   }
   $('shield').addEventListener('click', () => { try { window.focus(); } catch (e) {} });
+  // «Повернутися до роботи»: подія вже записана в журнал; поточний розмір вікна стає нормою, щоб екран не «залипав»
+  $('shield-ok').addEventListener('click', e => {
+    e.stopPropagation(); dismissed = true;
+    const b = BASE[orient()]; b.w = innerWidth; b.h = innerHeight; splitCnt = 0; focusCnt = 0;
+    if (awayStart !== null && curLeave && (curLeave.k === 'split' || curLeave.k === 'focus')) onReturn();
+    setShield(false);
+  });
   window.addEventListener('resize', () => { if (isTestStarted && !isSubmitted && !PREVIEW && COARSE) { const was = splitCnt; if (windowSplit()) splitCnt = Math.max(splitCnt, 2); else if (was) splitCnt = 0; setShield(splitCnt >= 2 || focusCnt >= 6); } });
   setInterval(() => {
     if (PREVIEW || !isTestStarted || isSubmitted || paused || document.hidden) { if (paused || document.hidden) setShield(false); return; }
@@ -865,6 +906,7 @@
     const lost = focusSeen && !hf;
     focusCnt = lost ? focusCnt + 1 : 0;
     if (!COARSE) {
+      if (hf) dismissed = false;
       if (!hf && awayStart === null) softBlur();
       else if (hf && awayStart !== null) onReturn();
       setShield(focusCnt >= 6);
@@ -872,8 +914,9 @@
       const split = windowSplit();
       splitCnt = split ? splitCnt + 1 : 0;
       // фокус на дотиковому пристрої: iPad у Slide Over / іншому вікні поруч віддає фокус, а сторінка лишається видимою
-      if (splitCnt >= 4 && awayStart === null) onLeave('split');
-      else if (focusCnt >= 8 && awayStart === null) onLeave('focus');
+      if (!split && !lost) dismissed = false;
+      if (splitCnt >= 4 && awayStart === null && !dismissed) onLeave('split');
+      else if (focusCnt >= 8 && awayStart === null && !dismissed) onLeave('focus');
       else if (awayStart !== null && curLeave && ((curLeave.k === 'split' && !split) || (curLeave.k === 'focus' && !lost))) onReturn();
       setShield(splitCnt >= 2 || focusCnt >= 6);
     }
@@ -1020,7 +1063,7 @@
     }
     $('question-container').innerHTML = h;
     ty = { k: 0, del: 0, t0: 0, t1: 0 }; ftDone = (ftSlot[q.slot] != null);
-    paintCanvases($('question-container')); redrawQText();
+    paintCanvases($('question-container')); redrawQText(); applyZoomLock();
     if (q.type === 'label') wireLabel(q);
     if (q.type === 'tap') wireTap(q);
     if (q.type === 'order') wireOrder(q);
