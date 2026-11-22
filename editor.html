@@ -132,6 +132,13 @@
   .addrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   .help { font-size: 13px; color: var(--muted); margin: 6px 0; }
   textarea.cm { width: 100%; margin-top: 8px; padding: 7px 10px; border: 1.5px dashed #d6a400; border-radius: 8px; background: #fffbea; font: inherit; font-size: 14px; resize: vertical; }
+  details.grp { border: 1px solid var(--line); border-radius: 12px; margin-top: 12px; padding: 0 14px; background: var(--surface); }
+  details.grp > summary { cursor: pointer; padding: 12px 0; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; list-style: none; }
+  details.grp > summary::-webkit-details-marker { display: none; }
+  details.grp > summary::before { content: '▸'; color: var(--muted); }
+  details.grp[open] > summary::before { content: '▾'; }
+  details.grp > summary .muted { font-size: 13px; font-weight: 400; }
+  details.grp > .grid { padding: 4px 0 14px; }
   details.media { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
   details.media summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--primary); }
   .imgf { display: flex; gap: 12px; align-items: flex-start; margin: 10px 0; flex-wrap: wrap; }
@@ -761,6 +768,47 @@
     return added;
   }
 
+  /* ---------- налаштування роботи: групи, що згортаються, і пресети захисту ---------- */
+  const PRESETS = {
+    quiet: { name: 'Тихо', hint: 'лише записувати вам, учень нічого не бачить', v: { warn: false, fs: false, shield: false, watermark: true, canvasImg: true, zoomLock: true, traps: true, textImg: false, recheck: 0, guided: false } },
+    std: { name: 'Стандарт', hint: 'щит на планшетах, водяний знак, пастки для ШІ', v: { warn: false, fs: true, shield: true, watermark: true, canvasImg: true, zoomLock: true, traps: true, textImg: false, recheck: 0, guided: false } },
+    strict: { name: 'Строго', hint: 'усе ввімкнено, текст питання зображенням, 2 перепитання, попередження учню', v: { warn: true, fs: true, shield: true, watermark: true, canvasImg: true, zoomLock: true, traps: true, textImg: true, recheck: 2, guided: true } }
+  };
+  function settingsHtml(t) {
+    const row = (key, label, cur, opts, hint, k) => '<div><label class="f">' + label + '</label><select data-p="' + key + '" data-k="' + (k || 'bool') + '">' +
+      opts.map(o => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' + (hint ? '<div class="muted" style="font-size:12px;margin-top:3px">' + hint + '</div>' : '') + '</div>';
+    const onoff = (key, label, def, onT, offT, hint) => row(key, label, (def ? t[key] !== false : t[key] === true) ? 'true' : 'false', [['true', onT || 'Увімкнено'], ['false', offT || 'Вимкнено']], hint);
+    const grp = (id, icon, title, sum, body, open) => '<details class="grp" data-g="' + id + '"' + (open || S.openGrp === id ? ' open' : '') + '><summary><b>' + icon + ' ' + title + '</b><span class="muted">' + sum + '</span></summary><div class="grid">' + body + '</div></details>';
+    const prot = [t.shield !== false, t.watermark !== false, t.canvasImg !== false, t.zoomLock !== false, t.traps !== false, t.textImg === true, (+t.recheck || 0) > 0, t.fs !== false].filter(Boolean).length;
+    return '<div class="grid two"><div><label class="f">Назва роботи</label>' + inp('title', t.title) + '</div>' +
+      '<div><label class="f">Предмет</label><input type="text" list="subj" data-p="subject" data-k="s" value="' + esc(t.subject || '') + '"><datalist id="subj"><option value="Біологія"><option value="Географія"></datalist></div>' +
+      '<div style="grid-column:1/-1"><label class="f">Тема (показується учням)</label>' + inp('topic', t.topic, { ph: 'Нервова система. Спинний мозок. Рефлекс' }) + '</div></div>' +
+      grp('time', '⏱', 'Час', (t.noTimer === true ? 'без спільного таймера' : 'таймер ' + (t.totalTime || 15) + ' хв') + ', читання ' + (t.readTime == null ? 8 : t.readTime) + ' с',
+        row('noTimer', 'Спільний таймер на роботу', t.noTimer === true ? 'true' : 'false', [['false', 'Є (запускається при «Відкрити доступ»)'], ['true', 'Немає (лише час на питання)']]) +
+        '<div><label class="f">Час на всю роботу, хв (порожньо — 15)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
+        '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>') +
+      grp('see', '👁', 'Що бачить учень', (t.showGrade !== false ? 'оцінка' : 'без оцінки') + ', ' + (t.review === true ? 'розбір відкрито' : 'розбір закрито') + ', ' + (t.warn === true ? 'попередження' : 'тихо'),
+        row('showGrade', 'Орієнтовна оцінка після здачі', t.showGrade !== false ? 'true' : 'false', [['true', 'Показувати учню'], ['false', 'Не показувати']]) +
+        row('review', 'Розбір для учнів (помилки, правильні відповіді, коментарі)', t.review === true ? 'true' : 'false', [['false', 'Закрито'], ['true', 'Відкрито']]) +
+        row('warn', 'Виходи зі сторінки: що бачить учень', t.warn === true ? 'true' : 'false', [['false', 'Нічого (тільки записувати вам)'], ['true', 'Попередження й обмеження']]) +
+        '<div><label class="f">Найдовший вихід, с (лише з попередженнями)</label>' + inp('awayOne', t.awayOne, { type: 'number', k: 'n' }) + '</div>' +
+        '<div><label class="f">Усього поза сторінкою, с (лише з попередженнями)</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>') +
+      grp('prot', '🛡', 'Захист від списування', 'ввімкнено ' + prot + ' з 8',
+        '<div style="grid-column:1/-1"><div class="muted" style="font-size:13px;margin-bottom:6px">Швидкий вибір (змінює всі пункти нижче, потім можна підправити):</div><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        Object.keys(PRESETS).map(k => '<button class="btn ghost sm" data-act="preset" data-k="' + k + '" title="' + esc(PRESETS[k].hint) + '">' + PRESETS[k].name + '</button>').join('') + '</div></div>' +
+        onoff('shield', 'Щит при розділеному екрані / втраті фокуса', true, 'Ховати питання (iPad)', 'Не ховати', 'Питання зникає, час іде; є кнопка повернення.') +
+        onoff('fs', 'Повний екран на комп’ютері', true, 'Вимагати', 'Не вимагати') +
+        onoff('watermark', 'Водяний знак', true, 'Ім’я, клас і час на екрані', 'Вимкнено', 'Стримує фото екрана.') +
+        onoff('canvasImg', 'Малюнки в canvas', true, 'Захищені від «Знайти» / Live Text', 'Звичайні малюнки') +
+        onoff('zoomLock', 'Масштабування сторінки', true, 'Заборонити (pinch, подвійний дотик)', 'Дозволити') +
+        onoff('imgZoom', 'Збільшення малюнка', true, 'Кнопка «🔍 Збільшити» під малюнком', 'Без збільшення', 'Збільшується лише малюнок, а не вся сторінка.') +
+        onoff('textImg', 'Текст питання зображенням', false, 'Увімкнено', 'Вимкнено', 'Не читається Siri / «Читачем» / ШІ; гірше для екранних читалок.') +
+        onoff('traps', 'Пастки для ШІ-асистентів', true, 'Невидиме слово-мітка', 'Вимкнено', 'Спрацювання видно в ризиках.') +
+        row('recheck', 'Контрольні перепитання наприкінці (0 балів)', +t.recheck || 0, [0, 1, 2, 3].map(n => [n, n ? n + ' пит.' : 'Немає']), 'Те саме питання з іншим порядком варіантів; зміна правильної відповіді — сигнал.', 'n') +
+        onoff('guided', 'Підказка «Кероване доступ» на iPad', false, 'Показувати на старті', 'Не показувати', 'Короткий чек-лист для учнів.'), false);
+  }
+
+  document.addEventListener('toggle', e => { const d = e.target; if (d && d.classList && d.classList.contains('grp')) { if (d.open) S.openGrp = d.dataset.g; else if (S.openGrp === d.dataset.g) S.openGrp = null; } }, true);
   function showEdit() {
     stopMon(); S.view = 'edit';
     const t = S.cur;
@@ -769,19 +817,7 @@
       '<button class="btn ghost" data-act="back">← Список</button><button class="btn ghost" data-act="export">Експорт</button><button class="btn ghost" data-act="preview">Пробний запуск</button>' +
       '<button class="btn" data-act="save">Зберегти</button><button class="btn ok" data-act="dist-cur">Видача →</button>') +
       '<div class="wrap">' +
-      '<div class="panel"><div class="grid two"><div><label class="f">Назва роботи</label>' + inp('title', t.title) + '</div>' +
-      '<div><label class="f">Предмет</label><input type="text" list="subj" data-p="subject" data-k="s" value="' + esc(t.subject || '') + '"><datalist id="subj"><option value="Біологія"><option value="Географія"></datalist></div>' +
-      '<div style="grid-column:1/-1"><label class="f">Тема (показується учням)</label>' + inp('topic', t.topic, { ph: 'Нервова система. Спинний мозок. Рефлекс' }) + '</div>' +
-      '<div><label class="f">Найдовший вихід зі сторінки, с (лише з попередженнями)</label>' + inp('awayOne', t.awayOne, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Усього поза сторінкою, с (лише з попередженнями)</label>' + inp('awayTotal', t.awayTotal, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Повний екран на комп\'ютері</label><select data-p="fs" data-k="bool"><option value="true"' + (t.fs !== false ? ' selected' : '') + '>Вимагати</option><option value="false"' + (t.fs === false ? ' selected' : '') + '>Не вимагати</option></select></div>' +
-      '<div><label class="f">Час на прочитання питання, с (0 — вимкнути)</label>' + inp('readTime', t.readTime == null ? 8 : t.readTime, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Спільний таймер на роботу</label><select data-p="noTimer" data-k="bool"><option value="false"' + (t.noTimer !== true ? ' selected' : '') + '>Є (запускається при «Відкрити доступ»)</option><option value="true"' + (t.noTimer === true ? ' selected' : '') + '>Немає (лише час на питання)</option></select></div>' +
-      '<div><label class="f">Час на всю роботу, хв (якщо таймер є; порожньо — 15)</label>' + inp('totalTime', t.totalTime, { type: 'number', k: 'n' }) + '</div>' +
-      '<div><label class="f">Водяний знак з іменем учня на екрані</label><select data-p="watermark" data-k="bool"><option value="true"' + (t.watermark !== false ? ' selected' : '') + '>Увімкнено (ім’я, клас і час; стримує фото екрана)</option><option value="false"' + (!(t.watermark !== false) ? ' selected' : '') + '>Вимкнено</option></select></div>' +'<div><label class="f">Щит при розділеному екрані / втраті фокуса</label><select data-p="shield" data-k="bool"><option value="true"' + (t.shield !== false ? ' selected' : '') + '>Ховати питання (iPad і планшети)</option><option value="false"' + (!(t.shield !== false) ? ' selected' : '') + '>Не ховати</option></select><div class="muted" style="font-size:12px;margin-top:3px">Якщо екран розділено, відкрито Slide Over чи інше вікно, питання зникає, а час іде.</div></div>' +'<div><label class="f">Захист малюнків від «Знайти» / Live Text / Lens</label><select data-p="canvasImg" data-k="bool"><option value="true"' + (t.canvasImg !== false ? ' selected' : '') + '>Малювати малюнки в canvas</option><option value="false"' + (!(t.canvasImg !== false) ? ' selected' : '') + '>Звичайні малюнки</option></select><div class="muted" style="font-size:12px;margin-top:3px">Довге натискання на малюнок не пропонує пошук чи копіювання.</div></div>' +'<div><label class="f">Текст питання зображенням (за бажанням)</label><select data-p="textImg" data-k="bool"><option value="true"' + (t.textImg === true ? ' selected' : '') + '>Текст питання зображенням</option><option value="false"' + (!(t.textImg === true) ? ' selected' : '') + '>Текст питання як текст</option></select><div class="muted" style="font-size:12px;margin-top:3px">Сторінка не містить тексту питання для Siri, «Читача», перекладача й розширень ШІ. Мінус: гірше для екранних читалок.</div></div>' +'<div><label class="f">Пастки для ШІ-асистентів</label><select data-p="traps" data-k="bool"><option value="true"' + (t.traps !== false ? ' selected' : '') + '>Приховані пастки для ШІ у відкритих і коротких відповідях</option><option value="false"' + (!(t.traps !== false) ? ' selected' : '') + '>Вимкнено</option></select><div class="muted" style="font-size:12px;margin-top:3px">Невидиме слово-мітка: якщо воно потрапило у відповідь, ви побачите це в ризиках.</div></div>' +'<div><label class="f">Контрольні перепитання наприкінці (0 балів)</label><select data-p="recheck" data-k="n">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + ((+t.recheck || 0) === n ? ' selected' : '') + '>' + (n ? n + ' пит.' : 'Немає') + '</option>').join('') + '</select><div class="muted" style="font-size:12px;margin-top:3px">Те саме питання з іншим порядком варіантів. Якщо учень змінив правильну відповідь — сигнал ризику. Учню виглядає як звичайне питання.</div></div>' +'<div><label class="f">iPad: підказка «Кероване доступ» на старті</label><select data-p="guided" data-k="bool"><option value="true"' + (t.guided === true ? ' selected' : '') + '>Показувати підказку про Кероване доступ</option><option value="false"' + (!(t.guided === true) ? ' selected' : '') + '>Не показувати</option></select><div class="muted" style="font-size:12px;margin-top:3px">Короткий чек-лист для учнів на стартовому екрані (для шкільних iPad).</div></div>' +
-      '<div><label class="f">Орієнтовна оцінка після здачі</label><select data-p="showGrade" data-k="bool"><option value="true"' + (t.showGrade !== false ? ' selected' : '') + '>Показувати учню</option><option value="false"' + (t.showGrade === false ? ' selected' : '') + '>Не показувати</option></select></div>' +
-      '<div><label class="f">Розбір для учнів (помилки, правильні відповіді, ваші коментарі)</label><select data-p="review" data-k="bool"><option value="false"' + (t.review !== true ? ' selected' : '') + '>Закрито</option><option value="true"' + (t.review === true ? ' selected' : '') + '>Відкрито тим, хто здав</option></select><div class="muted" style="font-size:12px;margin-top:3px">Відкривайте, коли всі групи вже написали, інакше правильні відповіді можна передати іншим.</div></div>' +
-      '<div><label class="f">Виходи зі сторінки: що бачить учень</label><select data-p="warn" data-k="bool"><option value="false"' + (t.warn !== true ? ' selected' : '') + '>Нічого (тільки записувати вам)</option><option value="true"' + (t.warn === true ? ' selected' : '') + '>Показувати попередження й перервати при перевищенні лімітів</option></select></div></div>' +
+      '<div class="panel">' + settingsHtml(t) +
       (t.sheetName ? '<p class="help">Результати пишуться в аркуш Google Таблиці: «' + esc(t.sheetName) + '».</p>' : '<p class="help">Аркуш результатів створиться автоматично після першого збереження.</p>') + '</div>' +
       (t.sections.length ? t.sections.map((s, i) => secHtml(s, i, t)).join('') : '<div class="panel"><div class="empty">Додайте перший блок питань.</div></div>') +
       '<div class="panel"><h2>Додати блок питань</h2><div class="grid"><select id="newtype">' + Object.keys(TYPES).map(k => '<option value="' + k + '">' + esc(TYPES[k].name) + '</option>').join('') + '</select>' +
@@ -1586,6 +1622,7 @@
       /* структура */
       case 'ai-ok': delete t.sections[si].questions[qi].ai; break;
       case 'ai-gen': return void (await aiRun());
+      case 'preset': { const P = PRESETS[b.dataset.k]; if (!P) return; Object.assign(t, P.v); S.openGrp = 'prot'; break; }
       case 'add-s': { const type = $('#newtype').value; t.sections.push(Object.assign({ type, questions: [newQ(type)] }, JSON.parse(JSON.stringify(TYPES[type].def)))); break; }
       case 'del-s': if (!confirm('Видалити блок разом із усіма його питаннями?')) return; t.sections.splice(si, 1); break;
       case 'up-s': if (!move(t.sections, si, -1)) return; break;
